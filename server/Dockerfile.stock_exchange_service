@@ -1,0 +1,21 @@
+FROM ubuntu:latest
+
+ADD ./stock_exchange_service /app
+
+WORKDIR /app/build
+
+RUN apt-get update && \
+    apt-get install -y \
+    libboost-dev libboost-program-options-dev cmake build-essential libpq-dev
+
+RUN cmake .. && \
+    cmake --build .
+
+RUN groupadd -r sample && useradd -r -g sample sample
+
+USER sample
+
+# CMD ["./stock_exchange_service", "--port", "8001"]
+CMD ["bash", "-c", "while true; do ./stock_exchange_service --port 8001; sleep 1; done"]
+
+EXPOSE 8001
