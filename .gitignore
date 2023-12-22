@@ -33,3 +33,4 @@
 
 db_init
 server/stock_exchange_service/build
+db_data
