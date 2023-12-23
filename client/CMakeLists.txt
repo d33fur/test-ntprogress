@@ -1,23 +1,27 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.21)
-PROJECT(stock_exchange_service LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.5)
 
-SET(CMAKE_CXX_STANDARD 17)
-SET(Boost_USE_STATIC_LIBS ON)
+project(stock_exchange_client LANGUAGES CXX)
 
-FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
-FIND_PACKAGE(Threads REQUIRED)
-FIND_PACKAGE(PostgreSQL REQUIRED)
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+set(CMAKE_AUTOUIC ON)
+# set(CMAKE_AUTOMOC ON)
+# set(CMAKE_AUTORCC ON)
 
-FIND_LIBRARY(HIREDIS_LIB hiredis)
-if(NOT HIREDIS_LIB)
-    message(FATAL_ERROR "hiredis library not found")
-endif()
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-#INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIR})
-# INCLUDE_DIRECTORIES(${PostgreSQL_INCLUDE_DIRS})
+find_package(Qt6 REQUIRED COMPONENTS Widgets Core Gui Network)
 
-ADD_EXECUTABLE(${PROJECT_NAME} Server.cpp json.hpp)
+file(GLOB_RECURSE SOURCES
+        *.h
+        *.cpp)
 
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} PRIVATE Threads::Threads ${Boost_LIBRARIES} PostgreSQL::PostgreSQL ${HIREDIS_LIB})
+add_executable(${PROJECT_NAME} WIN32 main.cpp ${SOURCES})
 
+target_link_libraries(${PROJECT_NAME}
+        Qt6::Widgets
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Network)
 
+install(TARGETS ${PROJECT_NAME} DESTINATION .)
