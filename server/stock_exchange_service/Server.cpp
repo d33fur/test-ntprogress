@@ -1,9 +1,10 @@
 #include <iostream>
+#include <map>
+#include <random>
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
 #include <libpq-fe.h>
 #include <hiredis/hiredis.h>
-#include <openssl/rand.h>
 #include "json.hpp"
 
 namespace asio = boost::asio;
@@ -16,6 +17,8 @@ public:
 
     // Запуск обработки сессии
     void start() {
+        std::cout << "LogFunc: start() NEW PROCESSING" << std::endl;
+        reset();
         read_request();
     }
 
@@ -29,14 +32,21 @@ private:
     // Запрос HTTP
     http::request<http::string_body> request_;
 
+    void reset() {
+        std::cout << "LogFunc: reset()" << std::endl;
+        buffer_.consume(buffer_.size());
+        request_ = {};
+    }
+
     // Отправка ответа
     void send_response(std::string response) {
+        std::cout << "LogFunc: send_response()" << std::endl;
         auto response_ptr = std::make_shared<std::string>(std::move(response));
 
         http::response<http::string_body> res;
         res.version(request_.version());
         res.result(http::status::ok);
-        res.set(http::field::server, "MyServer");
+        res.set(http::field::server, "stock_exchange_backend");
         res.set(http::field::content_type, "text/plain");
         res.body() = *response_ptr;
         res.prepare_payload();
@@ -48,6 +58,7 @@ private:
     }
 
     void read_request() {
+        std::cout << "LogFunc: read_request()" << std::endl;
         http::async_read(socket_, buffer_, request_,
             [self = shared_from_this()](boost::beast::error_code ec, std::size_t) {
                 if (!ec) {
@@ -57,66 +68,163 @@ private:
     }
 
     void process_request() {
+        std::cout << "LogFunc: process_request()" << std::endl;
         std::string method = request_.method_string().to_string();
         std::string target = request_.target().to_string();
         bool valid_request;
-        try {
-            isTokenValid();
-
-            if (method == "GET") {
-                if (target == "/checkToken") {
-                    checkToken_request();
-                }
-                else if (target == "/getCurrentDeals") {
-                    getCurrentDeals_request();
-                }
-                else if (target == "/getMyDeals") {
-                    getMyDeals_request();
-                }
-                else if (target == "/getCurrencyQuotes") {
-                    getCurrencyQuotes_request();
-                }
-                else {
-                    send_response("Unsupported path for GET request");
-                }
+        if (method == "GET") {
+            if (target == "/checkToken") {
+                checkToken_request();
             }
-            else if (method == "POST") {
-                if (target == "/makeDeal") {
-                    makeDeal_request();
-                }
-                else if (target == "/cancelDeal") {
-                    cancelDeal_request();
-                }
-                else {
-                    send_response("Unsupported path for POST request");
-                }
+            else if (target == "/getCurrentDeals") {
+                getCurrentDeals_request();
+            }
+            else if (target == "/getMyDeals" && isTokenValid()) {
+                getMyDeals_request();
+            }
+            else if (target == "/getCurrencyQuotes" && isTokenValid()) {
+                getCurrencyQuotes_request();
+            } 
+            else if (target == "/getMyInfo" && isTokenValid()) {
+                getMyInfo_request();
             }
             else {
-                send_response("Unsupported method request");
+                std::cout << "Log: Unsupported path for GET request or ivalid Token" << std::endl;
+                send_response("Unsupported path for GET request or ivalid Token");
             }
         }
-        catch(const std::exception& e) {
-            std::cout << "Bad token" << std::endl;
-            if (method == "POST") {
-                if (target == "/signup") {
-                    signup_request();
-                }
-                else if (target == "/login") {
-                    login_request();
-                }
-                else {
-                    send_response("Unsupported path for POST request");
-                }
+        else if (method == "POST") {
+            logReceivedJson();
+            if (target == "/signup") {
+                signup_request();
+            }
+            else if (target == "/login") {
+                login_request();
+            }
+            else if (target == "/makeDeal" && isTokenValid()) {
+                makeDeal_request();
+            }
+            else if (target == "/cancelDeal" && isTokenValid()) {
+                cancelDeal_request();
+            }
+            else {
+                std::cout << "Log: Unsupported path for POST request or invalid token" << std::endl;
+                send_response("Unsupported path for POST request or invalid token");
             }
         }
     }
 
-    void signup_request() {
+    void makeMoneyTransactions() {
+        
+    }
+
+    void checkToken_request() {
+        std::cout << "LogFunc: checkToken_request()" << std::endl;
+        auto json_token = request_.find("Token");
+        std::string token_from_user(json_token->value());
+        auto json_user_id = request_.find("User_id");
+        std::string user_id(json_user_id->value());
+        bool valid_user = checkToken(user_id, token_from_user);
+        nlohmann::json json_response = {
+                {"is_user_valid", std::to_string(valid_user)}
+            };
+        send_response(json_response.dump());
+    }
+
+    void getCurrentDeals_request() {
+        std::cout << "LogFunc: getCurrentDeals_request()" << std::endl;
         const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
         PGconn* conn = PQconnectdb(conninfo);
-        std::cout << "amogus" << std::endl;
+        const char* user_info[1] = {
+            "active"
+        };
+
+        nlohmann::json deals_json = getCurrentDeals(conn, user_info); // переделать в json
+        PQfinish(conn);
+        send_response(deals_json.dump());
+    }
+
+    void getMyDeals_request() {
+        std::cout << "LogFunc: getMyDeals_request()" << std::endl;
+        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
+        auto json_user_id = request_.find("User_id");
+        std::string user_id(json_user_id->value());
+        PGconn* conn = PQconnectdb(conninfo);
+        const char* user_info[1] = {
+            user_id.c_str()
+        };
+
+        nlohmann::json deals_json = getMyDeals(conn, user_info); // переделать в json
+        PQfinish(conn);
+        send_response(deals_json.dump());
+    }
+
+    void getCurrencyQuotes_request() {
+        std::cout << "LogFunc: getCurrencyQuotes_request()" << std::endl;
+        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
+        PGconn* conn = PQconnectdb(conninfo);
+        nlohmann::json quotes_json = getCurrencyQuotes(conn);
+        PQfinish(conn);
+        send_response(quotes_json.dump());
+    }
+
+    void getMyInfo_request() {
+        std::cout << "LogFunc: getMyInfo_request()" << std::endl;
+        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
+        PGconn* conn = PQconnectdb(conninfo);
+        auto json_user_id = request_.find("User_id");
+        std::string user_id(json_user_id->value());
+        const char* user_info[1] = {
+            user_id.c_str()
+        };
+        nlohmann::json user_info_json = getMyInfo(conn, user_info);
+        PQfinish(conn);
+        send_response(user_info_json.dump());
+    }
+
+    void makeDeal_request() {
+        std::cout << "LogFunc: makeDeal_request()" << std::endl;
+        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
+        PGconn* conn = PQconnectdb(conninfo);
+        auto json_user_id = request_.find("User_id");
+        std::string user_id(json_user_id->value());
         std::string body = request_.body();
-        std::cout << "amogus" << std::endl;
+        auto json_body = nlohmann::json::parse(body);
+        const char* user_info[6] = {
+            user_id.c_str(),
+            "0",
+            json_body["deal_type"].get<std::string>().c_str(),
+            json_body["amount"].get<std::string>().c_str(),
+            json_body["exchange_rate"].get<std::string>().c_str(),
+            "active"
+        };
+        makeDeal(conn, user_info);
+        PQfinish(conn);
+        makeMoneyTransactions();
+    }
+
+    void cancelDeal_request() {
+        std::cout << "LogFunc: cancelDeal_request()" << std::endl;
+        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
+        PGconn* conn = PQconnectdb(conninfo);
+        auto json_user_id = request_.find("User_id");
+        std::string user_id(json_user_id->value());
+        std::string body = request_.body();
+        auto json_body = nlohmann::json::parse(body);
+        const char* deal_info[3] = {
+            json_body["deal_id"].get<std::string>().c_str(),
+            "cancelled",
+            user_id.c_str()
+        };
+        cancelDeal(conn, deal_info);
+        PQfinish(conn);
+    }
+
+    void signup_request() {
+        std::cout << "LogFunc: signup_request()" << std::endl;
+        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
+        PGconn* conn = PQconnectdb(conninfo);
+        std::string body = request_.body();
         auto json_body = nlohmann::json::parse(body);
         const char* user_info[6] = {
             json_body["first_name"].get<std::string>().c_str(), 
@@ -126,19 +234,22 @@ private:
             json_body["login"].get<std::string>().c_str(), 
             json_body["password"].get<std::string>().c_str()
         };
-        std::cout << "amogus" << std::endl;
         if (!isUserExists(conn, user_info[4])) {
             std::string user_id = addUserAndGetId(conn, user_info);
             std::string generated_token = generateToken(user_id);
-            send_response(user_id + " " + generated_token);
+            nlohmann::json json_response = {
+                {"user_id", user_id},
+                {"token", generated_token}
+            };
+            send_response(json_response.dump());
         } else {
-            send_response("User already exists.");
+            send_response("User already exists");
         }
         PQfinish(conn);
-        std::cout << "amogus" << std::endl;
     }
 
     void login_request() {
+        std::cout << "LogFunc: login_request()" << std::endl;
         const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
         PGconn* conn = PQconnectdb(conninfo);
         std::string body = request_.body();
@@ -149,101 +260,30 @@ private:
         };
         
         if (checkLoginAndPassword(conn, user_info)) {
-            std::string user_id = GetIdWithLogin(conn, json_body["login"].get<std::string>().c_str());
+            std::string user_id = getIdWithLogin(conn, json_body["login"].get<std::string>().c_str());
             std::string generated_token = generateToken(user_id);
-            send_response(user_id + " " + generated_token);
+            nlohmann::json json_response = {
+                {"user_id", user_id},
+                {"token", generated_token}
+            };  
+            send_response(json_response.dump());
         } else {
-            send_response("Неправильный логин или пароль");
+            send_response("Wrong login or password");
         }
         PQfinish(conn);
     }
 
-    void checkToken_request() {
-        std::string body = request_.body();
-        auto json_body = nlohmann::json::parse(body);
-        std::cout << "/checkToken" << std::endl << "Received JSON: " << json_body.dump() << std::endl;
-        auto json_token = request_.find("Token");
-        std::string token_from_user(json_token->value().data(), json_token->value().length());
-        auto json_user_id = request_.find("User_id");
-        std::string user_id(json_user_id->value().data(), json_user_id->value().length());
-        bool valid_user = checkToken(user_id, token_from_user);
-        send_response("{\"is_user_valid\": \"" + std::to_string(valid_user) + "\"}");
-    }
-
-    void getCurrentDeals_request() {
-        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
-        PGconn* conn = PQconnectdb(conninfo);
-        const char* user_info[1] = {
-            "active"
-        };
-
-        std::vector<std::vector<std::string>> deals_string = getCurrentDeals(conn, user_info); // переделать в json
-        PQfinish(conn);
-        send_response("current_deals_string");
-    }
-
-    void getMyDeals_request() {
-        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
-        auto json_user_id = request_.find("User_id");
-        std::string user_id(json_user_id->value().data(), json_user_id->value().length());
-        PGconn* conn = PQconnectdb(conninfo);
-        const char* user_info[1] = {
-            user_id.c_str()
-        };
-
-        std::vector<std::vector<std::string>> deals_string = getMyDeals(conn, user_info); // переделать в json
-        PQfinish(conn);
-        send_response("my_deals_string");
-    }
-
-    void getCurrencyQuotes_request() {
-        send_response("getCurrencyQuotes");
-    }
-
-    void makeDeal_request() {
-        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
-        PGconn* conn = PQconnectdb(conninfo);
-        std::string body = request_.body();
-        auto json_body = nlohmann::json::parse(body);
-        const char* user_info[6] = {
-            "1",
-            "0",
-            json_body["deal_type"].get<std::string>().c_str(),
-            json_body["amount"].get<std::string>().c_str(),
-            json_body["exchange_rate"].get<std::string>().c_str(),
-            "active"
-        };
-        
-        makeDeal(conn, user_info);
-        PQfinish(conn);
-    }
-
-    void cancelDeal_request() {
-        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
-        PGconn* conn = PQconnectdb(conninfo);
-        std::string body = request_.body();
-        auto json_body = nlohmann::json::parse(body);
-        const char* deal_info[2] = {
-            json_body["deal_id"].get<std::string>().c_str(),
-            "cancelled"
-        };
-        
-        cancelDeal(conn, deal_info);
-        PQfinish(conn);
-    }
-
     bool isTokenValid() {
-        std::string body = request_.body();
-        auto json_body = nlohmann::json::parse(body);
-        std::cout << "/checkToken" << std::endl << "Received JSON: " << json_body.dump() << std::endl;
+        std::cout << "LogFunc: isTokenValid()" << std::endl;
         auto json_token = request_.find("Token");
-        std::string token_from_user(json_token->value().data(), json_token->value().length());
+        std::string token_from_user(json_token->value());
         auto json_user_id = request_.find("User_id");
-        std::string user_id(json_user_id->value().data(), json_user_id->value().length());
+        std::string user_id(json_user_id->value());
         return checkToken(user_id, token_from_user);
     }
 
     bool checkToken(const std::string& user_id, const std::string& token_from_user) {
+        std::cout << "LogFunc: checkToken()" << std::endl;
         redisContext* context = redisConnect("127.0.0.1", 6379);
         if (context != NULL && context->err) {
             std::cerr << "Error connecting to Redis: " << context->errstr << std::endl;
@@ -251,15 +291,15 @@ private:
         }
         std::string key = "user:" + user_id + ":token";
         redisReply* reply = (redisReply*)redisCommand(context, "GET %s", key.c_str());
-        std::string token_from_redis = reply->str;
-        // if (reply->str) {
-        //     token_from_redis = reply->str;
-        // }
+
+        std::string token_from_redis(reply->str, reply->len);
         freeReplyObject(reply);
-        token_from_user == token_from_redis ? 1 : 0;
+        redisFree(context);
+        return token_from_user == token_from_redis ? 1 : 0;
     }
 
     std::string generateToken(const std::string& user_id) {
+        std::cout << "LogFunc: generateToken()" << std::endl;
         redisContext* context = redisConnect("127.0.0.1", 6379);
         if (context != NULL && context->err) {
             std::cerr << "Error connecting to Redis: " << context->errstr << std::endl;
@@ -268,92 +308,125 @@ private:
         std::string key = "user:" + user_id + ":token";
         std::string token = generateRandomString(128);
         redisReply* reply = (redisReply*)redisCommand(context, "SET %s %s", key.c_str(), token.c_str());
-        std::string token_from_redis = reply->str;
-        // if (reply->str) {
-        //     token_from_redis = reply->str;
-        // }
         freeReplyObject(reply);
-        return token_from_redis;
+        redisFree(context);
+        return token;
     }
 
     std::string generateRandomString(size_t length) {
+        std::cout << "LogFunc: generateRandomString()" << std::endl;
+        const std::string characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        std::random_device rd;
+        std::mt19937 generator(rd());
+        std::uniform_int_distribution<std::size_t> distribution(0, characters.size() - 1);
         std::string randomString;
-        randomString.resize(length);
-        RAND_bytes(reinterpret_cast<unsigned char*>(&randomString[0]), static_cast<int>(length));
+        randomString.reserve(length);
+        for (std::size_t i = 0; i < length; ++i) {
+            randomString.push_back(characters[distribution(generator)]);
+        }
         return randomString;
     }
 
-    std::string GetIdWithLogin(PGconn* conn, const char* login) {
+    std::string getIdWithLogin(PGconn* conn, const char* login) {
+        std::cout << "LogFunc: getIdWithLogin()" << std::endl;
         const char* PG_get_user_id = "SELECT id FROM users WHERE login = $1";
         const char* user_info_id[1] = {
             login
         };
         PGresult* result = PQexecParams(conn, PG_get_user_id, 1, NULL, user_info_id, NULL, NULL, 0);
-        if (PQresultStatus(result) != PGRES_COMMAND_OK) {
-            std::cerr << "Error adding user: " << PQresultErrorMessage(result) << std::endl;
-            PQclear(result);
-            return 0;
-        }
-        std::cout << "GetIdWithLogin!" << std::endl;
         std::string user_id(PQgetvalue(result, 0, 0));
         PQclear(result);
         return user_id;
     }
 
-    std::vector<std::vector<std::string>> getCurrentDeals(PGconn* conn, const char* deal_status[]) {
+    nlohmann::json getCurrentDeals(PGconn* conn, const char* deal_status[]) {
+        std::cout << "LogFunc: getCurrentDeals()" << std::endl;
         const char* PG_get_current_deals = "SELECT * FROM deals WHERE deal_status = $1";
         PGresult* result = PQexecParams(conn, PG_get_current_deals, 1, NULL, deal_status, NULL, NULL, 0);
         int rows = PQntuples(result);
         int cols = PQnfields(result);
-        std::vector<std::vector<std::string>> deals_vector(rows);
+        nlohmann::json deals_json = {};
         for(int row = 0; row < rows; row++) {
-            for(int col = 0; col < cols; col++) {
-                std::string temp_deal(PQgetvalue(result, row, col));
-                deals_vector[row].push_back(temp_deal);
+            nlohmann::json deal_row = {};
+            for(int col = 0; col < cols-1; col++) {
+                deal_row.push_back(PQgetvalue(result, row, col));
             }
-        }
-        if (PQresultStatus(result) != PGRES_TUPLES_OK) {
-            std::cerr << "Error : " << PQresultErrorMessage(result) << std::endl;
-            PQclear(result);
+            deals_json.push_back(deal_row);
         }
 
         PQclear(result);
-        return deals_vector;
+        return deals_json;
     }
 
-    std::vector<std::vector<std::string>> getMyDeals(PGconn* conn, const char* deal_status[]) {
-        const char* PG_get_current_deals = "SELECT * FROM deals WHERE deal_status = $1";
+    nlohmann::json getMyDeals(PGconn* conn, const char* deal_status[]) {
+        std::cout << "LogFunc: getMyDeals()" << std::endl;
+        const char* PG_get_current_deals = "SELECT * FROM deals WHERE from_user_id = $1 OR to_user_id = $1";
         PGresult* result = PQexecParams(conn, PG_get_current_deals, 1, NULL, deal_status, NULL, NULL, 0);
         int rows = PQntuples(result);
         int cols = PQnfields(result);
-        std::vector<std::vector<std::string>> deals_vector(rows);
+        nlohmann::json deals_json = {};
         for(int row = 0; row < rows; row++) {
+            nlohmann::json deal_row = {};
             for(int col = 0; col < cols; col++) {
-                std::string temp_deal(PQgetvalue(result, row, col));
-                deals_vector[row].push_back(temp_deal);
+                deal_row.push_back(PQgetvalue(result, row, col));
             }
-        }
-        if (PQresultStatus(result) != PGRES_TUPLES_OK) {
-            std::cerr << "Error : " << PQresultErrorMessage(result) << std::endl;
-            PQclear(result);
+            deals_json.push_back(deal_row);
         }
 
         PQclear(result);
-        return deals_vector;
+        return deals_json;
+    }
+
+    nlohmann::json getCurrencyQuotes(PGconn* conn) {
+        std::cout << "LogFunc: getMyDeals()" << std::endl;
+        const char* PG_get_currency_quotes = "SELECT exchange_rate, time_start FROM deals";
+        PGresult* result = PQexec(conn, PG_get_currency_quotes);
+        int rows = PQntuples(result);
+        int cols = PQnfields(result);
+        std::vector<std::map<std::string, std::string>> currency_quotes_vector;
+        for (int row = 0; row < rows; row++) {
+            std::map<std::string, std::string> currency_quotes_row;
+            for (int col = 0; col < cols; col++) {
+                const char* column_name = PQfname(result, col);
+                const char* column_value = PQgetvalue(result, row, col);
+                currency_quotes_row[std::string(column_name)] = std::string(column_value);
+            }
+            currency_quotes_vector.push_back(currency_quotes_row);
+        }
+        PQclear(result);
+        std::sort(currency_quotes_vector.begin(), currency_quotes_vector.end(),
+          [](const auto& lhs, const auto& rhs) {
+              if (lhs.at("time_start") == rhs.at("time_start")) {
+                  return std::stod(lhs.at("exchange_rate")) > std::stod(rhs.at("exchange_rate"));
+              }
+              return lhs.at("time_start") > rhs.at("time_start");
+          });
+
+        nlohmann::json currency_quotes_json = currency_quotes_vector;
+        return currency_quotes_json;
+    }
+
+    nlohmann::json getMyInfo(PGconn* conn, const char* user_id[]) {
+        std::cout << "LogFunc: getMyInfo()" << std::endl;
+        const char* PG_get_user_info = "SELECT * FROM users WHERE id = $1";
+        PGresult* result = PQexecParams(conn, PG_get_user_info, 1, NULL, user_id, NULL, NULL, 0);
+        int cols = PQnfields(result);
+        nlohmann::json deal_row = {};
+        for(int col = 1; col < cols-2; col++) {
+            deal_row.push_back(PQgetvalue(result, 0, col));
+        }
+
+        PQclear(result);
+        return deal_row;
     }
 
     bool isUserExists(PGconn* conn, const char* login) {
+        std::cout << "LogFunc: isUserExists()" << std::endl;
         const char* PG_is_user_exists = "SELECT 1 FROM users WHERE login = $1 LIMIT 1";
         const char* paramValues[1] = {
             login
         };
         PGresult* result = PQexecParams(conn, PG_is_user_exists, 1, NULL, paramValues, NULL, NULL, 0);
-
-        if (PQresultStatus(result) != PGRES_TUPLES_OK) {
-            std::cerr << "Error checking user existence: " << PQresultErrorMessage(result) << std::endl;
-            PQclear(result);
-            return false;
-        }
 
         bool exists = (PQntuples(result) > 0);
         PQclear(result);
@@ -361,41 +434,24 @@ private:
     }
 
     std::string addUserAndGetId(PGconn* conn, const char* user_info[]) {
+        std::cout << "LogFunc: addUserAndGetId()" << std::endl;
         const char* PG_add_user = "INSERT INTO users (first_name, second_name, balance_usd, balance_rub, login, password) VALUES ($1, $2, $3, $4, $5, $6)";
         PGresult* result = PQexecParams(conn, PG_add_user, 6, NULL, user_info, NULL, NULL, 0);
-
-        if (PQresultStatus(result) != PGRES_COMMAND_OK) {
-            std::cerr << "Error adding user: " << PQresultErrorMessage(result) << std::endl;
-            PQclear(result);
-            return "error";
-        }
-
         PQclear(result);
         const char* PG_get_user_id = "SELECT id FROM users WHERE login = $1";
         const char* user_info_id[1] = {
             user_info[4]
         };
         result = PQexecParams(conn, PG_get_user_id, 1, NULL, user_info_id, NULL, NULL, 0);
-        if (PQresultStatus(result) != PGRES_COMMAND_OK) {
-            std::cerr << "Error adding user: " << PQresultErrorMessage(result) << std::endl;
-            PQclear(result);
-            return "error";
-        }
-        std::cout << "User added successfully!" << std::endl;
         std::string user_id(PQgetvalue(result, 0, 0));
         PQclear(result);
         return user_id;
     }
 
     bool checkLoginAndPassword(PGconn* conn, const char* user_info[]) {
+        std::cout << "LogFunc: checkLoginAndPassword()" << std::endl;
         const char* PG_check_login_and_password = "SELECT 1 FROM users WHERE login = $1 AND password = $2";
         PGresult* result = PQexecParams(conn, PG_check_login_and_password, 2, NULL, user_info, NULL, NULL, 0);
-
-        if (PQresultStatus(result) != PGRES_TUPLES_OK) {
-            std::cerr << "Error checking user existence: " << PQresultErrorMessage(result) << std::endl;
-            PQclear(result);
-            return false;
-        }
 
         bool user_exists = (PQntuples(result) == 1);
         PQclear(result);
@@ -403,22 +459,28 @@ private:
     }
 
     void makeDeal(PGconn* conn, const char* user_info[]) {
+        std::cout << "LogFunc: makeDeal()" << std::endl;
         const char* PG_make_deal = "INSERT INTO deals (from_user_id, to_user_id, deal_type, amount, exchange_rate, deal_status) VALUES ($1, $2, $3, $4, $5, $6)";
         PGresult* result = PQexecParams(conn, PG_make_deal, 6, NULL, user_info, NULL, NULL, 0);
         PQclear(result);
     }
 
-<<<<<<< HEAD
     void cancelDeal(PGconn* conn, const char* deal_info[]) {
-        const char* PG_cancel_deal = "UPDATE deals SET deal_status = $2 WHERE id = $1";
-        PGresult* result = PQexecParams(conn, PG_cancel_deal, 2, NULL, deal_info, NULL, NULL, 0);
+        std::cout << "LogFunc: cancelDeal()" << std::endl;
+        const char* PG_cancel_deal = "UPDATE deals SET deal_status = $2, time_end = NOW() WHERE id = $1 AND from_user_id = $3";
+        PGresult* result = PQexecParams(conn, PG_cancel_deal, 3, NULL, deal_info, NULL, NULL, 0);
         PQclear(result);
     }
->>>>>>> 52767796ab66eeb4a55f0d72a93f44b8ecf4cfd7
 
-
+    void logReceivedJson() {
+        std::cout << "LogFunc: logReceivedJson()" << std::endl;
+        std::string body = request_.body();
+        auto json_body = nlohmann::json::parse(body);
+        std::cout << "Log: Received JSON: " << json_body.dump() << std::endl;
+    }
 
 };
+class MyServer {
 public:
     MyServer(asio::io_context& io_context, std::uint16_t port)
         : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)), socket_(io_context) {
@@ -430,6 +492,7 @@ private:
     tcp::socket socket_;
 
     void accept() {
+        std::cout << "LogFunc: accept()" << std::endl;
         acceptor_.async_accept(socket_, [this](boost::beast::error_code ec) {
             if (!ec) {
                 std::make_shared<MySession>(std::move(socket_))->start();

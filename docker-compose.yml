@@ -26,5 +26,7 @@ services:
   redis:
     container_name: redis
     image: redis:latest
+    volumes:
+      - ./redis_data:/data
     ports:
       - "6379:6379"
