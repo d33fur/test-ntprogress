@@ -50,7 +50,7 @@ private:
         res.version(request_.version());
         res.result(http::status::ok);
         res.set(http::field::server, "stock_exchange_backend");
-        res.set(http::field::content_type, "text/plain");
+        res.set(http::field::content_type, "application/json");
         res.body() = *response_ptr;
         res.prepare_payload();
 
@@ -97,7 +97,7 @@ private:
             }
             else {
                 std::cout << "Log: Unsupported path for GET request or ivalid Token" << std::endl;
-                send_response("Unsupported path for GET request or ivalid Token");
+                send_response("{\"Unsupported path for GET request or ivalid Token\"}");
             }
         }
         else if (method == "POST") {
@@ -116,7 +116,7 @@ private:
             }
             else {
                 std::cout << "Log: Unsupported path for POST request or invalid token" << std::endl;
-                send_response("Unsupported path for POST request or invalid token");
+                send_response("{\"Unsupported path for POST request or invalid token\"}");
             }
         }
     }
@@ -283,7 +283,7 @@ private:
             send_response(json_response.dump());
         } 
         else {
-            send_response("User already exists");
+            send_response("{\"User already exists\"}");
         }
 
         PQfinish(conn);
@@ -314,7 +314,7 @@ private:
             send_response(json_response.dump());
         } 
         else {
-            send_response("Wrong login or password");
+            send_response("{\"Wrong login or password\"}");
         }
 
         PQfinish(conn);
@@ -332,7 +332,7 @@ private:
         PGconn* conn = PQconnectdb(conninfo);
         const char* PG_get_max_buy_deal = "SELECT * FROM deals WHERE deal_type = 'buy' AND deal_status = 'active' ORDER BY exchange_rate DESC, time_start ASC";
 
-        PGresult* result = PQexecParams(conn, PG_get_max_buy_deal);
+        PGresult* result = PQexec(conn, PG_get_max_buy_deal);
         // форматируем
         int rows = PQntuples(result);
         int cols = PQnfields(result);
@@ -352,7 +352,7 @@ private:
 
         const char* PG_get_min_sell_deals = "SELECT * FROM deals WHERE deal_type = 'sell' AND deal_status = 'active' ORDER BY exchange_rate ASC";
 
-        result = PQexecParams(conn, PG_get_min_sell_deals);
+        result = PQexec(conn, PG_get_min_sell_deals);
         // форматируем
 
         std::string user_id(PQgetvalue(result, 0, 0));
@@ -365,7 +365,7 @@ private:
         // обновляем данные
         const char* PG_update_deals_info = "SELECT * FROM deals WHERE deal_type = 'sell' AND deal_status = 'active' ORDER BY exchange_rate ASC";
 
-        result = PQexecParams(conn, PG_update_deals_info);
+        result = PQexec(conn, PG_update_deals_info);
 
         PQclear(result);
 

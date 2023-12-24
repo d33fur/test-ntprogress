@@ -6,7 +6,7 @@ WORKDIR /app/build
 
 RUN apt-get update && \
     apt-get install -y \
-    libboost-dev libboost-program-options-dev cmake build-essential libpq-dev libhiredis-dev libssl-dev
+    libboost-dev libboost-program-options-dev cmake build-essential libpq-dev libhiredis-dev
 
 RUN cmake .. && \
     cmake --build .
