@@ -83,7 +83,7 @@ private:
             if (target == "/checkToken") {
                 checkToken_request();
             }
-            else if (target == "/getCurrentDeals") {
+            else if (target == "/getCurrentDeals" && isTokenValid()) {
                 getCurrentDeals_request();
             }
             else if (target == "/getMyDeals" && isTokenValid()) {
@@ -472,7 +472,10 @@ private:
             nlohmann::json deal_row = {};
 
             for(int col = 0; col < cols-1; col++) {
-                deal_row.push_back(PQgetvalue(result, row, col));
+                const char* column_name = PQfname(result, col);
+                const char* column_value = PQgetvalue(result, row, col);
+
+                deal_row[std::string(column_name)] = std::string(column_value);
             }
             deals_json.push_back(deal_row);
         }
@@ -496,7 +499,10 @@ private:
             nlohmann::json deal_row = {};
 
             for(int col = 0; col < cols; col++) {
-                deal_row.push_back(PQgetvalue(result, row, col));
+                const char* column_name = PQfname(result, col);
+                const char* column_value = PQgetvalue(result, row, col);
+
+                deal_row[std::string(column_name)] = std::string(column_value);
             }
             deals_json.push_back(deal_row);
         }
@@ -554,7 +560,10 @@ private:
         nlohmann::json deal_row = {};
 
         for(int col = 1; col < cols-2; col++) {
-            deal_row.push_back(PQgetvalue(result, 0, col));
+            const char* column_name = PQfname(result, col);
+            const char* column_value = PQgetvalue(result, 0, col);
+
+            deal_row[std::string(column_name)] = std::string(column_value);
         }
 
         PQclear(result);
