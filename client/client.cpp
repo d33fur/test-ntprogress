@@ -54,7 +54,7 @@ public:
 
 signals:
     void registrationComplete(const QString &username, const QString &token, const QString &userId);
-
+    void registrationFailed(const QString &errorMessage);
 private slots:
     void registerClicked() {
         qDebug() << "LogFunc: registerClicked()";
@@ -62,7 +62,13 @@ private slots:
         QString lastName = lastNameEdit->text();
         QString username = usernameEdit->text();
         QString password = passwordEdit->text();
+        // QString confirmPassword = confirmPasswordEdit->text();
         bool rememberMe = rememberMeCheckBox->isChecked();
+
+        // if (password != confirmPassword) {
+        //     // Обработка ошибки - пароли не совпадают
+        //     return;
+        // }
 
 
         QJsonObject json;
@@ -74,7 +80,7 @@ private slots:
 
         QJsonDocument jsonDoc(json);
         QByteArray data = jsonDoc.toJson();
-
+        qDebug() << "user input data" << json;
 
         QNetworkAccessManager *manager = new QNetworkAccessManager(this);
         connect(manager, &QNetworkAccessManager::finished, this, &RegistrationForm::handleNetworkReply);
@@ -86,7 +92,6 @@ private slots:
 
         QString token = "";
         QString userId = "";
-        emit registrationComplete(usernameEdit->text(), token, userId);
     }
 
     void handleNetworkReply(QNetworkReply *reply) {
@@ -101,13 +106,13 @@ private slots:
                 QString token = jsonResponse["token"].toString();
                 QString userId = jsonResponse["user_id"].toString();
                 emit registrationComplete(usernameEdit->text(), token, userId);
+            } else if (jsonResponse.contains("User already exists")){
+                emit registrationFailed("User already exists");
             } else {
-                // Обработка других вариантов ответа
-
+                emit registrationFailed("something goes wrong with backend");
             }
         } else {
-            // Обработка ошибки
-
+            emit registrationFailed(reply->errorString());
         }
 
         reply->deleteLater();
@@ -118,6 +123,7 @@ private:
     QLineEdit *lastNameEdit;
     QLineEdit *usernameEdit;
     QLineEdit *passwordEdit;
+    // QLineEdit *confirmPasswordEdit;
     QCheckBox *rememberMeCheckBox;
 };
 
@@ -151,6 +157,7 @@ public:
 
 signals:
     void loginComplete(const QString &username, const QString &token, const QString &userId);
+    void loginFailed(const QString &errorMessage);
 
 private slots:
     void loginClicked() {
@@ -172,12 +179,11 @@ private slots:
 
         QJsonDocument jsonDoc(json);
         QByteArray data = jsonDoc.toJson();
-
+        qDebug() << "user input data" << json;
         manager->post(request, data);
 
         QString token = "";
         QString userId = "";
-        emit loginComplete(usernameEdit->text(), token, userId);
     }
 
     void handleNetworkReply(QNetworkReply *reply) {
@@ -191,16 +197,17 @@ private slots:
                 QString token = jsonResponse["token"].toString();
                 QString userId = jsonResponse["user_id"].toString();
                 emit loginComplete(usernameEdit->text(), token, userId);
+            } else if (jsonResponse.contains("Wrong login or password")) {
+                emit loginFailed("Wrong login or password");
             } else {
-                // Обработка других вариантов ответа
-
+                emit loginFailed("something goes wrong");
             }
         } else {
-            // Обработка ошибки
-
+            emit loginFailed(reply->errorString());
         }
 
         reply->deleteLater();
+        
     }
 
 private:
@@ -210,62 +217,160 @@ private:
 };
 
 
+class StockExchangeForm : public QWidget {
+    Q_OBJECT
+public:
+    StockExchangeForm(QWidget *parent = nullptr) : QWidget(parent) {
+        qDebug() << "LogFunc: StockExchangeForm()";
+        nameLabel = new QLabel("Name: ");
+        lastNameLabel = new QLabel("Last Name: ");
+        balanceUSDLabel = new QLabel("Balance USD: ");
+        balanceRUBLabel = new QLabel("Balance RUB: ");
+
+        currentDealsButton = new QPushButton("CurrentDeals");
+        myDealsButton = new QPushButton("MyDeals");
+        currencyQuotesButton = new QPushButton("CurrencyQuotes");
+        makeDealButton = new QPushButton("Make a Deal");
+
+        QVBoxLayout *mainLayout = new QVBoxLayout;
+        QHBoxLayout *topLayout = new QHBoxLayout;
+        QHBoxLayout *bottomLayout = new QHBoxLayout;
+
+        bottomLayout->addWidget(nameLabel);
+        bottomLayout->addWidget(lastNameLabel);
+        bottomLayout->addWidget(balanceUSDLabel);
+        bottomLayout->addWidget(balanceRUBLabel);
+
+        topLayout->addWidget(currentDealsButton);
+        topLayout->addWidget(myDealsButton);
+        topLayout->addWidget(currencyQuotesButton);
+        topLayout->addStretch();
+        topLayout->addWidget(makeDealButton);
+
+        mainLayout->addLayout(topLayout);
+        mainLayout->addLayout(bottomLayout);
+
+        setLayout(mainLayout);
+    }
+
+signals:
+
+
+private slots:
+    void updateUserInfo(const QString &name, const QString &lastName, const QString &balanceUSD, const QString &balanceRUB) {
+        nameLabel->setText("Name: " + name);
+        lastNameLabel->setText("Last Name: " + lastName);
+        balanceUSDLabel->setText("Balance: " + balanceUSD);
+        balanceRUBLabel->setText("Balance: " + balanceRUB);
+    }
+
+
+private:
+    QLabel *nameLabel;
+    QLabel *lastNameLabel;
+    QLabel *balanceUSDLabel;
+    QLabel *balanceRUBLabel;
+
+    QPushButton *currentDealsButton;
+    QPushButton *myDealsButton;
+    QPushButton *currencyQuotesButton;
+    QPushButton *makeDealButton;
+};
+
 
 class MainWindow : public QWidget {
     Q_OBJECT
 public:
     MainWindow(QWidget *parent = nullptr) : QWidget(parent) {
         qDebug() << "LogFunc: MainWindow()";
-        QPushButton *signupButton = new QPushButton("Signup");
-        QPushButton *loginButton = new QPushButton("Login");
+        resize(800, 600);
 
+        signupButton = new QPushButton("Signup");
+        loginButton = new QPushButton("Login");
+        logoutButton = new QPushButton("Logout");
 
         stackedWidget = new QStackedWidget;
 
         RegistrationForm *registrationForm = new RegistrationForm;
         LoginForm *loginForm = new LoginForm;
+        StockExchangeForm *stockExchangeForm = new StockExchangeForm;
 
         stackedWidget->addWidget(registrationForm);
         stackedWidget->addWidget(loginForm);
+        stackedWidget->addWidget(stockExchangeForm);
 
         QVBoxLayout *layout = new QVBoxLayout;
         layout->addWidget(signupButton);
         layout->addWidget(loginButton);
         layout->addWidget(stackedWidget);
-
+        layout->addWidget(logoutButton);
+        logoutButton->setVisible(false);
+        stackedWidget->setVisible(false);
         setLayout(layout);
 
         connect(signupButton, &QPushButton::clicked, this, &MainWindow::showRegistrationForm);
         connect(loginButton, &QPushButton::clicked, this, &MainWindow::showLoginForm);
-        connect(registrationForm, &RegistrationForm::registrationComplete, this, &MainWindow::handleRegistrationComplete);
+        connect(logoutButton, &QPushButton::clicked, this, &MainWindow::showAuthFrom);
+
+        connect(registrationForm, &RegistrationForm::registrationComplete, this, &MainWindow::handleLoginComplete);
+        connect(registrationForm, &RegistrationForm::registrationFailed, this, &MainWindow::handleRegistrationFailure);
+
         connect(loginForm, &LoginForm::loginComplete, this, &MainWindow::handleLoginComplete);
-        connect(this, &MainWindow::userAuthenticated, this, &MainWindow::sendGetRequests);
+        connect(loginForm, &LoginForm::loginFailed, this, &MainWindow::handleLoginFailure);
+
+        connect(this, &MainWindow::userAuthenticated, this, &MainWindow::sendGetCurrentDeals);
+        // connect(this, &MainWindow::userAuthenticated, this, &MainWindow::sendGetRequests);
+        // connect(this, &MainWindow::userAuthenticated, this, &MainWindow::sendGetRequests);
+        // connect(this, &MainWindow::userAuthenticated, this, &MainWindow::sendGetRequests);
+        // connect(this, &MainWindow::userAuthenticated, this, &MainWindow::sendGetRequests);
     }
 
 private slots:
     void showRegistrationForm() {
         qDebug() << "LogFunc: showRegistrationForm()";
+        // stockExchangeForm->setVisible(true);
+        stackedWidget->setVisible(true);
         stackedWidget->setCurrentIndex(0);  // Индекс формы регистрации
     }
 
     void showLoginForm() {
         qDebug() << "LogFunc: showLoginForm()";
+        // stockExchangeForm->setVisible(true);
+        stackedWidget->setVisible(true);
         stackedWidget->setCurrentIndex(1);  // Индекс формы входа
     }
 
-    void handleRegistrationComplete(const QString &username, const QString &token, const QString &userId) {
-        qDebug() << "LogFunc: handleRegistrationComplete()";
+    void showAuthFrom() {
+        qDebug() << "LogFunc: logout()";
+        stackedWidget->setVisible(false);
+        signupButton->setVisible(true);
+        loginButton->setVisible(true);
+        logoutButton->setVisible(false);
+        stackedWidget->setCurrentIndex(0);  // Индекс формы входа
+    }
 
-        qDebug() << "Registration complete for user:" << username;
-        qDebug() << "Token:" << token;
-        qDebug() << "User ID:" << userId;
+    // void handleRegistrationComplete(const QString &username, const QString &token, const QString &userId) {
+    //     qDebug() << "LogFunc: handleRegistrationComplete()";
 
-        // Дополнительные действия, например, переключение на главную страницу
+    //     qDebug() << "Registration complete for user:" << username;
+    //     qDebug() << "Token:" << token;
+    //     qDebug() << "User ID:" << userId;
 
 
 
-        stackedWidget->setCurrentIndex(2);  // Индекс главной страницы
-        emit userAuthenticated(token, userId);
+    //     signupButton->setVisible(false);
+    //     loginButton->setVisible(false);
+    //     logoutButton->setVisible(true);
+    //     stackedWidget->setCurrentIndex(2);  // Индекс главной страницы
+    //     emit userAuthenticated(token, userId);
+    // }
+
+    void handleRegistrationFailure(const QString &errorMessage) {
+        qDebug() << "Registration failed:" << errorMessage;
+    }
+
+    void handleLoginFailure(const QString &errorMessage) {
+        qDebug() << "Login failed:" << errorMessage;
     }
 
     void handleLoginComplete(const QString &username, const QString &token, const QString &userId) {
@@ -275,56 +380,38 @@ private slots:
         qDebug() << "Token:" << token;
         qDebug() << "User ID:" << userId;
 
-        // Дополнительные действия, например, переключение на главную страницу
 
 
-
+        signupButton->setVisible(false);
+        loginButton->setVisible(false);
+        logoutButton->setVisible(true);
         stackedWidget->setCurrentIndex(2);  // Индекс главной страницы
         emit userAuthenticated(token, userId);
     }
 
-    void sendGetRequests(const QString &token, const QString &userId) {
+    void sendGetCurrentDeals(const QString &token, const QString &userId) {
         qDebug() << "LogFunc: sendGetRequests()";
-        sendGetRequest("http://localhost:8001/getCurrentDeals", token);
-        sendGetRequestWithUserId("http://localhost:8001/getMyDeals", token, userId);
-        sendGetRequestWithUserId("http://localhost:8001/getMyInfo", token, userId);
-        sendGetRequestWithUserId("http://localhost:8001/getCurrencyQuotes", token, userId);
-
-        displayDeals();
-    }
-
-    void sendGetRequest(const QString &url, const QString &token) {
-        qDebug() << "LogFunc: sendGetRequest()";
         QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-        connect(manager, &QNetworkAccessManager::finished, this, &MainWindow::handleGetReply);
+        connect(manager, &QNetworkAccessManager::finished, this, &MainWindow::handleGetReplyCurrentDeals);
 
         QNetworkRequest request;
-        request.setUrl(QUrl(url));
-        request.setRawHeader("Token", token.toUtf8());
-
-        manager->get(request);
-    }
-
-    void sendGetRequestWithUserId(const QString &url, const QString &token, const QString &userId) {
-        qDebug() << "LogFunc: sendGetRequestWithUserId()";
-        QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-        connect(manager, &QNetworkAccessManager::finished, this, &MainWindow::handleGetReply);
-
-        QNetworkRequest request;
-        request.setUrl(QUrl(url));
+        request.setUrl(QUrl("http://localhost:8001/getCurrentDeals"));
         request.setRawHeader("Token", token.toUtf8());
         request.setRawHeader("User_id", userId.toUtf8());
 
         manager->get(request);
+        // sendGetRequest("http://localhost:8001/getMyDeals", token, userId);
+        // sendGetRequest("http://localhost:8001/getMyInfo", token, userId);
+        // sendGetRequest("http://localhost:8001/getCurrencyQuotes", token, userId);
     }
 
-    void handleGetReply(QNetworkReply *reply) {
+    void handleGetReplyCurrentDeals(QNetworkReply *reply) {
         qDebug() << "LogFunc: handleGetReply()";
         if (reply->error() == QNetworkReply::NoError) {
             QByteArray responseData = reply->readAll();
             QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
             QJsonObject jsonResponse = jsonDoc.object();
-
+            displayDeals(jsonResponse);
 
             qDebug() << "Get request successful:" << jsonResponse;
         } else {
@@ -335,25 +422,58 @@ private slots:
         reply->deleteLater();
     }
 
-    void displayDeals() {
-        qDebug() << "LogFunc: displayDeals()";
+void displayDeals(QJsonObject jsonDeals) {
+    qDebug() << "LogFunc: displayDeals()";
 
-        dealsList = new QListWidget;
-        QVBoxLayout *layout = new QVBoxLayout;
-        layout->addWidget(dealsList);
-        setLayout(layout);
+    dealsList = new QListWidget;
+    QVBoxLayout *layout = new QVBoxLayout;
+    layout->addWidget(dealsList);
+    setLayout(layout);
 
+    QStringList keys = jsonDeals.keys();
+    for (const QString &key : keys) {
+        QJsonObject deal = jsonDeals[key].toObject();
 
-        dealsList->addItem("Deal 1");
-        dealsList->addItem("Deal 2");
-        dealsList->addItem("Deal 3");
+        QString amount = deal["amount"].toString();
+        QString dealStatus = deal["deal_status"].toString();
+        QString dealType = deal["deal_type"].toString();
+        QString exchangeRate = deal["exchange_rate"].toString();
+        QString fromUserId = deal["from_user_id"].toString();
+        QString id = deal["id"].toString();
+        QString timeStart = deal["time_start"].toString();
+        QString toUserId = deal["to_user_id"].toString();
 
+        QString dealString = QString("Deal %1:\n"
+                                    "Amount: %2\n"
+                                    "Deal Status: %3\n"
+                                    "Deal Type: %4\n"
+                                    "Exchange Rate: %5\n"
+                                    "From User ID: %6\n"
+                                    "ID: %7\n"
+                                    "Time Start: %8\n"
+                                    "To User ID: %9\n")
+                                .arg(key)
+                                .arg(amount)
+                                .arg(dealStatus)
+                                .arg(dealType)
+                                .arg(exchangeRate)
+                                .arg(fromUserId)
+                                .arg(id)
+                                .arg(timeStart)
+                                .arg(toUserId);
+
+        dealsList->addItem(dealString);
     }
+}
+
 
 signals:
     void userAuthenticated(const QString &token, const QString &userId);
 
 private:
+    QPushButton *signupButton;
+    QPushButton *loginButton;
+    QPushButton *logoutButton;
     QStackedWidget *stackedWidget;
     QListWidget *dealsList;
 };
