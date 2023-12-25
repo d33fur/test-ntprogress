@@ -56,6 +56,9 @@ private:
 
         http::async_write(socket_, res,
             [self = shared_from_this(), response_ptr](boost::beast::error_code ec, std::size_t) {
+                if (ec) {
+                    std::cerr << "Error in async_write: " << ec.message() << std::endl;
+                }
                 self->socket_.shutdown(tcp::socket::shutdown_send, ec);
             });
     }
@@ -80,6 +83,7 @@ private:
         bool valid_request;
 
         if (method == "GET") {
+            logReceivedJson();
             if (target == "/checkToken") {
                 checkToken_request();
             }
@@ -642,11 +646,20 @@ private:
 
     void logReceivedJson() {
         std::cout << "LogFunc: logReceivedJson()" << std::endl;
-
-        std::string body = request_.body();
-        auto json_body = nlohmann::json::parse(body);
-
-        std::cout << "Log: Received JSON: " << json_body.dump() << std::endl;
+        try {
+            std::string body = request_.body();
+            auto json_body = nlohmann::json::parse(body);
+            std::cout << "Log: Received JSON: " << json_body.dump() << std::endl;
+        } catch (const std::exception& e) {
+            std::cout << "Log: no json"<< std::endl;
+        }
+        auto json_token = request_.find("Token");
+        std::string token_from_user(json_token->value());
+        auto json_user_id = request_.find("User_id");
+        std::string user_id(json_user_id->value());
+        std::cout << "Log: Received user_token: " << token_from_user << std::endl;
+        std::cout << "Log: Received user_id: " << user_id << std::endl;
+        
     }
 
 };
