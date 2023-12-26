@@ -42,25 +42,27 @@ private:
 
     // Отправка ответа
     void send_response(std::string response) {
-        std::cout << "LogFunc: send_response()" << std::endl;
 
-        auto response_ptr = std::make_shared<std::string>(std::move(response));
+    std::cout << "LogFunc: send_response()" << std::endl;
 
-        http::response<http::string_body> res;
-        res.version(request_.version());
-        res.result(http::status::ok);
-        res.set(http::field::server, "stock_exchange_backend");
-        res.set(http::field::content_type, "application/json");
-        res.body() = *response_ptr;
-        res.prepare_payload();
+    auto response_ptr = std::make_shared<std::string>(std::move(response));
 
-        http::async_write(socket_, res,
-            [self = shared_from_this(), response_ptr](boost::beast::error_code ec, std::size_t) {
-                if (ec) {
-                    std::cerr << "Error in async_write: " << ec.message() << std::endl;
-                }
-                self->socket_.shutdown(tcp::socket::shutdown_send, ec);
-            });
+    http::response<http::string_body> res;
+    res.version(request_.version());
+    res.result(http::status::ok);
+    res.set(http::field::server, "stock_exchange_backend");
+    res.set(http::field::content_type, "application/json");
+    res.body() = *response_ptr;
+    res.prepare_payload();
+
+    http::async_write(socket_, res,
+        [self = shared_from_this(), response_ptr](boost::beast::error_code ec, std::size_t) {
+            if (ec) {
+                std::cerr << "Error in async_write: " << ec.message() << std::endl;
+            }
+            self->socket_.shutdown(tcp::socket::shutdown_send, ec);
+        });
+
     }
 
     void read_request() {
@@ -81,47 +83,56 @@ private:
         std::string target = request_.target().to_string();
 
         bool valid_request;
-
+        logReceivedJson();
         if (method == "GET") {
-            logReceivedJson();
-            if (target == "/checkToken") {
-                checkToken_request();
-            }
-            else if (target == "/getCurrentDeals" && isTokenValid()) {
-                getCurrentDeals_request();
-            }
-            else if (target == "/getMyDeals" && isTokenValid()) {
-                getMyDeals_request();
-            }
-            else if (target == "/getCurrencyQuotes" && isTokenValid()) {
-                getCurrencyQuotes_request();
-            } 
-            else if (target == "/getMyInfo" && isTokenValid()) {
-                getMyInfo_request();
-            }
-            else {
-                std::cout << "Log: Unsupported path for GET request or ivalid Token" << std::endl;
-                send_response("{\"Unsupported path for GET request or ivalid Token\"}");
-            }
+            handle_get_request(target);
         }
         else if (method == "POST") {
-            logReceivedJson();
-            if (target == "/signup") {
-                signup_request();
-            }
-            else if (target == "/login") {
-                login_request();
-            }
-            else if (target == "/makeDeal" && isTokenValid()) {
-                makeDeal_request();
-            }
-            else if (target == "/cancelDeal" && isTokenValid()) {
-                cancelDeal_request();
-            }
-            else {
-                std::cout << "Log: Unsupported path for POST request or invalid token" << std::endl;
-                send_response("{\"Unsupported path for POST request or invalid token\"}");
-            }
+            handle_post_request(target);
+        }
+    }
+
+    void handle_get_request(const std::string& target) {
+        std::cout << "LogFunc: handle_get_request()" << std::endl;
+        if (target == "/checkToken") {
+            checkToken_request();
+        }
+        else if (target == "/getCurrentDeals" && isTokenValid()) {
+            getCurrentDeals_request();
+        }
+        else if (target == "/getMyDeals" && isTokenValid()) {
+            getMyDeals_request();
+        }
+        else if (target == "/getCurrencyQuotes" && isTokenValid()) {
+            getCurrencyQuotes_request();
+        }
+        else if (target == "/getMyInfo" && isTokenValid()) {
+            getMyInfo_request();
+        }
+        else {
+            std::cout << "Log: Unsupported path for GET request or invalid Token" << std::endl;
+            send_response("{\"Unsupported path for GET request or invalid Token\"}");
+        }
+    }
+
+
+    void handle_post_request(const std::string& target) {
+        std::cout << "LogFunc: handle_post_request()" << std::endl;
+        if (target == "/signup") {
+            signup_request();
+        }
+        else if (target == "/login") {
+            login_request();
+        }
+        else if (target == "/makeDeal" && isTokenValid()) {
+            makeDeal_request();
+        }
+        else if (target == "/cancelDeal" && isTokenValid()) {
+            cancelDeal_request();
+        }
+        else {
+            std::cout << "Log: Unsupported path for POST request or invalid token" << std::endl;
+            send_response("{\"Unsupported path for POST request or invalid token\"}");
         }
     }
 
@@ -232,7 +243,7 @@ private:
 
         PQfinish(conn);
 
-        makeMoneyTransactions();
+        //makeMoneyTransactions();
     }
 
     void cancelDeal_request() {
