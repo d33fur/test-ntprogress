@@ -40,6 +40,7 @@ clean-server:
 
 .PHONY: build-client
 build-client:
+	cd client && \
 	mkdir -p build && \
 	cd build && \
 	cmake .. && \
