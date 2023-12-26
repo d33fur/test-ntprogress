@@ -1,10 +1,8 @@
 .PHONY: all
-all: 
-	clear-server
-	start-server 
-	clean-client
-	build-client
+all: rebuild-server start-server clear-client build-client start-client
 
+.PHONY: clean-all
+clear-all: clear-server clear-client
 # Серверная часть
 
 .PHONY: build-server
@@ -33,7 +31,7 @@ restart-server:
 	start-server
 
 .PHONY: clear-server
-clean-server:
+clear-server:
 	@docker-compose down || echo no containers to remove
 
 # Клиентская часть
@@ -44,8 +42,13 @@ build-client:
 	mkdir -p build && \
 	cd build && \
 	cmake .. && \
-	make
+	cmake --build .
+
+.PHONY: start-client
+start-client:
+	./client/build/stock_exchange_client
+
 
 .PHONY: clear-client
-clean-client:
-	rm -rf build
+clear-client:
+	rm -rf client/build
