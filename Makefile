@@ -1,7 +1,7 @@
 .PHONY: all
 all: rebuild-server start-server clear-client build-client start-client
 
-.PHONY: clean-all
+.PHONY: clear-all
 clear-all: clear-server clear-client
 # Серверная часть
 
@@ -26,9 +26,7 @@ stop-server:
 	docker-compose stop
 
 .PHONY: restart-server
-restart-server:
-	stop-server
-	start-server
+restart-server: stop-server start-server
 
 .PHONY: clear-server
 clear-server:
