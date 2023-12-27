@@ -27,42 +27,35 @@ class DealDialog : public QDialog {
 public:
     DealDialog(QWidget *parent = nullptr) : QDialog(parent) {
         qDebug() << "LogFunc: DealDialog()";
+        
         setWindowTitle("Make Deal");
 
-        // Создаем элементы управления
         amountLineEdit = new QLineEdit(this);
         exchangeRateLineEdit = new QLineEdit(this);
         dealTypeComboBox = new QComboBox(this);
         dealTypeComboBox->addItem("buy");
         dealTypeComboBox->addItem("sell");
 
-        QPushButton *submitButton = new QPushButton("Submit", this);
+        submitButton = new QPushButton("Submit", this);
 
-        // Создаем layout и добавляем элементы
-        QFormLayout *layout = new QFormLayout(this);
+        layout = new QFormLayout(this);
         layout->addRow("Amount:", amountLineEdit);
         layout->addRow("Exchange Rate:", exchangeRateLineEdit);
         layout->addRow("Deal Type:", dealTypeComboBox);
         layout->addWidget(submitButton);
 
-        // Подключаем сигнал нажатия кнопки к обработчику
         connect(submitButton, &QPushButton::clicked, this, &DealDialog::handleSubmit);
-        // Установка фиксированного размера окна
         setFixedSize(300, 150);
     }
 
 signals:
     void dealSubmitted(const QString &amount, const QString &exchangeRate, const QString &dealType);
-    void dealMade();
 
 private slots:
     void handleSubmit() {
         qDebug() << "LogFunc: handleSubmit()";
-        // Отправляем сигнал с данными введенными пользователем
 
         emit dealSubmitted(amountLineEdit->text(), exchangeRateLineEdit->text(), dealTypeComboBox->currentText());
-        emit dealMade();
-        // Закрываем окно
         close();
     }
 
@@ -70,6 +63,8 @@ private:
     QLineEdit *amountLineEdit;
     QLineEdit *exchangeRateLineEdit;
     QComboBox *dealTypeComboBox;
+    QPushButton *submitButton;
+    QFormLayout *layout;
 };
 
 class RegistrationForm : public QWidget {
@@ -77,6 +72,7 @@ class RegistrationForm : public QWidget {
 public:
     RegistrationForm(QWidget *parent = nullptr) : QWidget(parent) {
         qDebug() << "LogFunc: RegistrationForm()";
+
         QLabel *firstNameLabel = new QLabel("First Name:");
         QLabel *lastNameLabel = new QLabel("Last Name:");
         QLabel *usernameLabel = new QLabel("Username:");
@@ -112,21 +108,17 @@ public:
 signals:
     void registrationComplete(const QString &username, const QString &token, const QString &userId);
     void registrationFailed(const QString &errorMessage);
+
 private slots:
     void registerClicked() {
         qDebug() << "LogFunc: registerClicked()";
+
         QString firstName = firstNameEdit->text();
         QString lastName = lastNameEdit->text();
         QString username = usernameEdit->text();
         QString password = passwordEdit->text();
-        // QString confirmPassword = confirmPasswordEdit->text();
+
         bool rememberMe = rememberMeCheckBox->isChecked();
-
-        // if (password != confirmPassword) {
-        //     // Обработка ошибки - пароли не совпадают
-        //     return;
-        // }
-
 
         QJsonObject json;
         json["first_name"] = firstName;
@@ -146,15 +138,12 @@ private slots:
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
         manager->post(request, data);
-
-        QString token = "";
-        QString userId = "";
     }
 
     void handleNetworkReply(QNetworkReply *reply) {
         qDebug() << "LogFunc: handleNetworkReply()";
-        if (reply->error() == QNetworkReply::NoError) {
 
+        if (reply->error() == QNetworkReply::NoError) {
             QByteArray responseData = reply->readAll();
             QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
             QJsonObject jsonResponse = jsonDoc.object();
@@ -162,13 +151,17 @@ private slots:
             if (jsonResponse.contains("token") && jsonResponse.contains("user_id")) {
                 QString token = jsonResponse["token"].toString();
                 QString userId = jsonResponse["user_id"].toString();
+
                 emit registrationComplete(usernameEdit->text(), token, userId);
-            } else if (jsonResponse.contains("User already exists")){
+            } 
+            else if (jsonResponse.contains("User already exists")){
                 emit registrationFailed("User already exists");
-            } else {
+            } 
+            else {
                 emit registrationFailed("something goes wrong with backend");
             }
-        } else {
+        } 
+        else {
             emit registrationFailed(reply->errorString());
         }
 
@@ -180,7 +173,6 @@ private:
     QLineEdit *lastNameEdit;
     QLineEdit *usernameEdit;
     QLineEdit *passwordEdit;
-    // QLineEdit *confirmPasswordEdit;
     QCheckBox *rememberMeCheckBox;
 };
 
@@ -189,6 +181,7 @@ class LoginForm : public QWidget {
 public:
     LoginForm(QWidget *parent = nullptr) : QWidget(parent) {
         qDebug() << "LogFunc: LoginForm()";
+
         QLabel *usernameLabel = new QLabel("Username:");
         QLabel *passwordLabel = new QLabel("Password:");
 
@@ -196,7 +189,6 @@ public:
         passwordEdit = new QLineEdit;
 
         rememberMeCheckBox = new QCheckBox("Remember Me");
-
         QPushButton *loginButton = new QPushButton("Login");
 
         QVBoxLayout *layout = new QVBoxLayout;
@@ -219,16 +211,15 @@ signals:
 private slots:
     void loginClicked() {
         qDebug() << "LogFunc: loginClicked()";
+
         QString username = usernameEdit->text();
         QString password = passwordEdit->text();
-
 
         QNetworkAccessManager *manager = new QNetworkAccessManager(this);
         connect(manager, &QNetworkAccessManager::finished, this, &LoginForm::handleNetworkReply);
 
         QNetworkRequest request(QUrl("http://localhost:8001/login"));
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
 
         QJsonObject json;
         json["login"] = username;
@@ -245,6 +236,7 @@ private slots:
 
     void handleNetworkReply(QNetworkReply *reply) {
         qDebug() << "LogFunc: handleNetworkReply()";
+
         if (reply->error() == QNetworkReply::NoError) {
             QByteArray responseData = reply->readAll();
             QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
@@ -253,18 +245,21 @@ private slots:
             if (jsonResponse.contains("token") && jsonResponse.contains("user_id")) {
                 QString token = jsonResponse["token"].toString();
                 QString userId = jsonResponse["user_id"].toString();
+
                 emit loginComplete(usernameEdit->text(), token, userId);
-            } else if (jsonResponse.contains("Wrong login or password")) {
+            } 
+            else if (jsonResponse.contains("Wrong login or password")) {
                 emit loginFailed("Wrong login or password");
-            } else {
+            } 
+            else {
                 emit loginFailed("something goes wrong");
             }
-        } else {
+        } 
+        else {
             emit loginFailed(reply->errorString());
         }
 
         reply->deleteLater();
-        
     }
 
 private:
@@ -273,12 +268,12 @@ private:
     QCheckBox *rememberMeCheckBox;
 };
 
-
 class StockExchangeForm : public QWidget {
     Q_OBJECT
 public:
     StockExchangeForm(QWidget *parent = nullptr) : QWidget(parent) {
         qDebug() << "LogFunc: StockExchangeForm()";
+
         nameLabel = new QLabel("Name: ");
         lastNameLabel = new QLabel("Last Name: ");
         balanceUSDLabel = new QLabel("Balance USD: ");
@@ -290,6 +285,8 @@ public:
         makeDealButton = new QPushButton("Make a Deal");
         balanceButton = new QPushButton("Update balance");
         dealsList = new QListWidget;
+
+        dealDialog = new DealDialog(this);
 
         QVBoxLayout *mainLayout = new QVBoxLayout;
         QHBoxLayout *topLayout = new QHBoxLayout;
@@ -315,45 +312,46 @@ public:
         mainLayout->addLayout(bottomLayout);
 
         setLayout(mainLayout);
+
         connect(currentDealsButton, &QPushButton::clicked, this, &StockExchangeForm::getCurrentDealsRequest);
         connect(myDealsButton, &QPushButton::clicked, this, &StockExchangeForm::getMyDealsRequest);
         connect(balanceButton, &QPushButton::clicked, this, &StockExchangeForm::getUserInfo);
-        //connect(makeDealButton, &QPushButton::clicked, this, &StockExchangeForm::makeDealShow);
-
-        dealDialog = new DealDialog(this);
-
         connect(dealDialog, &DealDialog::dealSubmitted, this, &StockExchangeForm::makeDeal);
         connect(makeDealButton, &QPushButton::clicked, this, &StockExchangeForm::showMakeDealDialog);
-        connect(dealDialog, &DealDialog::dealMade, this, &StockExchangeForm::getMyDealsRequest);
     }
 
 signals:
     void getCurrentDeals(const QString token, const QString userId);
     
-
 public slots:
     void setUserInfo(const QString &token, const QString &id) {
         qDebug() << "LogFunc: setUserInfo()";
 
         userToken = token;
         userId = id;
+
         sendGetUserInfo(userToken, userId);
-        //nameLabel->setText()
-        // userToken = token;
-        // userId = id;
         qDebug() << userToken << " " << userId;
     }
 
 private slots:
-
     void showMakeDealDialog() {
         qDebug() << "LogFunc: showMakeDealDialog()";
+
         dealDialog->show();
     }
 
-
     void makeDeal(const QString &amount, const QString &exchangeRate, const QString &dealType) {
         qDebug() << "LogFunc: makeDeal()";
+
+        bool amountIsValid = amount.toDouble() > 0;
+        bool exchangeRateIsValid = exchangeRate.toDouble() > 0;
+
+        if (!amountIsValid || !exchangeRateIsValid) {
+            qDebug() << "Invalid input: Amount and Exchange Rate must be positive numbers.";
+            return;
+        }
+
         QNetworkAccessManager *manager = new QNetworkAccessManager(this);
         connect(manager, &QNetworkAccessManager::finished, this, &StockExchangeForm::handleMakeDeal);
 
@@ -370,17 +368,19 @@ private slots:
         QJsonDocument jsonDoc(json);
         QByteArray data = jsonDoc.toJson();
 
-
         qDebug() << "user input data" << json;
         manager->post(request, data);
-
     }
 
     void handleMakeDeal(QNetworkReply *reply) {
         qDebug() << "LogFunc: handleMakeDeal()";
 
+        QByteArray responseData = reply->readAll();
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+        QJsonObject jsonResponse = jsonDoc.object();
+        qDebug() << jsonResponse;
+
         reply->deleteLater();
-        
     }
 
     void getCurrentDealsRequest() {
@@ -398,11 +398,13 @@ private slots:
 
     void getUserInfo() {
         qDebug() << "LogFunc: getUserInfo()";
+
         sendGetUserInfo(userToken, userId);
     }
 
     void sendGetUserInfo(const QString token, const QString userId) {
         qDebug() << "LogFunc: sendGetUserInfo()";
+
         QNetworkAccessManager *manager = new QNetworkAccessManager(this);
         connect(manager, &QNetworkAccessManager::finished, this, &StockExchangeForm::handleGetUserInfo);
 
@@ -412,16 +414,16 @@ private slots:
         request.setRawHeader("User_id", userId.toUtf8());
 
         manager->get(request);
-        // sendGetRequest("http://localhost:8001/getMyInfo", token, userId);
-        // sendGetRequest("http://localhost:8001/getCurrencyQuotes", token, userId);
     }
 
     void handleGetUserInfo(QNetworkReply *reply) {
         qDebug() << "LogFunc: handleGetUserInfo()";
+
         if (reply->error() == QNetworkReply::NoError) {
             QByteArray responseData = reply->readAll();
             QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
             QJsonObject jsonResponse = jsonDoc.object();
+
             nameLabel->setText("Name: " + jsonResponse["first_name"].toString());
             lastNameLabel->setText("Last Name: " + jsonResponse["second_name"].toString());
             balanceUSDLabel->setText("BalanceUSD: " + jsonResponse["balance_usd"].toString());
@@ -429,7 +431,6 @@ private slots:
 
             qDebug() << "Get request successful:" << jsonResponse;
         } else {
-
             qDebug() << "Get request failed:" << reply->errorString();
         }
 
@@ -438,6 +439,7 @@ private slots:
 
     void sendGetCurrentDeals(const QString token, const QString userId) {
         qDebug() << "LogFunc: sendGetCurrentDeals()";
+
         QNetworkAccessManager *manager = new QNetworkAccessManager(this);
         connect(manager, &QNetworkAccessManager::finished, this, &StockExchangeForm::handleGetReplyCurrentDeals);
 
@@ -447,13 +449,11 @@ private slots:
         request.setRawHeader("User_id", userId.toUtf8());
 
         manager->get(request);
-        // sendGetRequest("http://localhost:8001/getMyDeals", token, userId);
-        // sendGetRequest("http://localhost:8001/getMyInfo", token, userId);
-        // sendGetRequest("http://localhost:8001/getCurrencyQuotes", token, userId);
     }
 
     void handleGetReplyCurrentDeals(QNetworkReply *reply) {
         qDebug() << "LogFunc: handleGetReplyCurrentDeals()";
+
         if (reply->error() == QNetworkReply::NoError) {
             QByteArray responseData = reply->readAll();
             QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
@@ -461,7 +461,8 @@ private slots:
 
             qDebug() << "Get request successful:" << jsonArray;
             displayDeals(jsonArray);
-        } else {
+        } 
+        else {
             qDebug() << "Get request failed:" << reply->errorString();
         }
 
@@ -472,7 +473,7 @@ private slots:
         qDebug() << "LogFunc: displayDeals()";
 
         int size = jsonDeals.size();
-        dealsList->clear();  // Clear existing items
+        dealsList->clear();
 
         for (int i = 0; i < size; ++i) {
             QJsonObject deal = jsonDeals[i].toObject();
@@ -486,14 +487,6 @@ private slots:
             QString timeStart = deal["time_start"].toString();
             QString toUserId = deal["to_user_id"].toString();
 
-            // QString dealString = QString("Amount: %1\n"
-            //                             "Deal Status: %2\n"
-            //                             "Deal Type: %3\n"
-            //                             "Exchange Rate: %4\n"
-            //                             "From User ID: %5\n"
-            //                             "ID: %6\n"
-            //                             "Time Start: %7\n"
-            //                             "To User ID: %8\n")
             QString dealString = QString("%1 USD "
                                         "%2 "
                                         "With exchange Rate: %3 "
@@ -505,14 +498,13 @@ private slots:
                                     .arg(fromUserId)
                                     .arg(id);
 
-            qDebug() << "Deal:" << dealString;
             dealsList->addItem(dealString);
         }
     }
 
-
     void sendGetMyDeals(const QString token, const QString userId) {
         qDebug() << "LogFunc: sendGetMyDeals()";
+
         QNetworkAccessManager *manager = new QNetworkAccessManager(this);
         connect(manager, &QNetworkAccessManager::finished, this, &StockExchangeForm::handleGetReplyMyDeals);
 
@@ -522,21 +514,21 @@ private slots:
         request.setRawHeader("User_id", userId.toUtf8());
 
         manager->get(request);
-        // sendGetRequest("http://localhost:8001/getMyDeals", token, userId);
-        // sendGetRequest("http://localhost:8001/getMyInfo", token, userId);
-        // sendGetRequest("http://localhost:8001/getCurrencyQuotes", token, userId);
     }
 
     void handleGetReplyMyDeals(QNetworkReply *reply) {
         qDebug() << "LogFunc: handleGetReplyMyDeals()";
+
         if (reply->error() == QNetworkReply::NoError) {
             QByteArray responseData = reply->readAll();
             QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
             QJsonArray jsonArray = jsonDoc.array();
 
             qDebug() << "Get request successful:" << jsonArray;
+
             displayMyDeals(jsonArray);
-        } else {
+        } 
+        else {
             qDebug() << "Get request failed:" << reply->errorString();
         }
 
@@ -547,7 +539,7 @@ private slots:
         qDebug() << "LogFunc: displayMyDeals()";
 
         int size = jsonDeals.size();
-        dealsList->clear();  // Clear existing items
+        dealsList->clear();
 
         for (int i = 0; i < size; ++i) {
             QJsonObject deal = jsonDeals[i].toObject();
@@ -561,14 +553,6 @@ private slots:
             QString timeStart = deal["time_start"].toString();
             QString toUserId = deal["to_user_id"].toString();
 
-            // QString dealString = QString("Amount: %1\n"
-            //                             "Deal Status: %2\n"
-            //                             "Deal Type: %3\n"
-            //                             "Exchange Rate: %4\n"
-            //                             "From User ID: %5\n"
-            //                             "ID: %6\n"
-            //                             "Time Start: %7\n"
-            //                             "To User ID: %8\n")
             QString dealString = QString("%1 USD "
                                         "%2 "
                                         "With exchange Rate: %3 "
@@ -582,37 +566,28 @@ private slots:
                                     .arg(id)
                                     .arg(dealStatus);
 
-            qDebug() << "Deal:" << dealString;
-            // dealsList->addItem(dealString);
             QWidget *dealWidget = new QWidget(dealsList);
             QVBoxLayout *layout = new QVBoxLayout(dealWidget);
 
             QLabel *dealLabel = new QLabel(dealString);
             layout->addWidget(dealLabel);
 
-            // Conditionally add the "Cancel" button if dealStatus is "active"
             if (dealStatus == "active") {
                 QPushButton *cancelButton = new QPushButton("Cancel");
 
-                // Connect the "Cancel" button to the handleCancelDeal slot
                 connect(cancelButton, &QPushButton::clicked, this, [this, id]() {
                     handleCancelDeal(id);
                 });
 
-                // Add the "Cancel" button to the layout
                 layout->addWidget(cancelButton);
             }
 
-            // Set the layout for the deal widget
             dealWidget->setLayout(layout);
-
-            // Add the deal widget to the list
             QListWidgetItem *item = new QListWidgetItem(dealsList);
-            item->setSizeHint(dealWidget->sizeHint());  // Set the size hint
+            item->setSizeHint(dealWidget->sizeHint());
             dealsList->setItemWidget(item, dealWidget);
         }
     }
-
     
     void handleCancelDeal(const QString &dealId) {
         qDebug() << "LogFunc: handleCancelDeal()";
@@ -637,19 +612,14 @@ private slots:
 
     void handleCancelDealReply(QNetworkReply *reply) {
         qDebug() << "LogFunc: handleCancelDealReply()";
-        sendGetMyDeals(userToken, userId);
-        // Handle the reply, e.g., emit a signal or update the UI
-        if (reply->error() == QNetworkReply::NoError) {
-            qDebug() << "Cancel deal successful";
-            
-        } else {
-            qDebug() << "Cancel deal failed:" << reply->errorString();
-        }
+
+        QByteArray responseData = reply->readAll();
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+        QJsonObject jsonResponse = jsonDoc.object();
+        qDebug() << jsonResponse;
 
         reply->deleteLater();
     }
-
-
 
 private:
     QLabel *nameLabel;
@@ -675,6 +645,7 @@ class MainWindow : public QWidget {
 public:
     MainWindow(QWidget *parent = nullptr) : QWidget(parent) {
         qDebug() << "LogFunc: MainWindow()";
+
         resize(800, 600);
 
         signupButton = new QPushButton("Signup");
@@ -686,7 +657,6 @@ public:
         RegistrationForm *registrationForm = new RegistrationForm;
         LoginForm *loginForm = new LoginForm;
         StockExchangeForm *stockExchangeForm = new StockExchangeForm;
-
 
         stackedWidget->addWidget(registrationForm);
         stackedWidget->addWidget(loginForm);
@@ -703,58 +673,51 @@ public:
 
         connect(signupButton, &QPushButton::clicked, this, &MainWindow::showRegistrationForm);
         connect(loginButton, &QPushButton::clicked, this, &MainWindow::showLoginForm);
-        connect(logoutButton, &QPushButton::clicked, this, &MainWindow::showAuthFrom);
+        connect(logoutButton, &QPushButton::clicked, this, &MainWindow::showAuthForm);
 
         connect(registrationForm, &RegistrationForm::registrationComplete, this, &MainWindow::handleLoginComplete);
         connect(registrationForm, &RegistrationForm::registrationFailed, this, &MainWindow::handleRegistrationFailure);
-
         connect(loginForm, &LoginForm::loginComplete, this, &MainWindow::handleLoginComplete);
         connect(loginForm, &LoginForm::loginFailed, this, &MainWindow::handleLoginFailure);
 
-        
-        
-        //connect(this, &MainWindow::userAuthenticated, this, &MainWindow::sendGetCurrentDeals);
-        
-        // connect(this, &MainWindow::userAuthenticated, this, &MainWindow::sendGetRequests);
-        // connect(this, &MainWindow::userAuthenticated, this, &MainWindow::sendGetRequests);
-        // connect(this, &MainWindow::userAuthenticated, this, &MainWindow::sendGetRequests);
         connect(this, &MainWindow::userAuthenticated, stockExchangeForm, &StockExchangeForm::setUserInfo);
     }
 
 private slots:
-
-
-
     void showRegistrationForm() {
         qDebug() << "LogFunc: showRegistrationForm()";
-        // stockExchangeForm->setVisible(true);
+
         stackedWidget->setVisible(true);
         stackedWidget->setCurrentIndex(0);  // Индекс формы регистрации
     }
 
     void showLoginForm() {
         qDebug() << "LogFunc: showLoginForm()";
-        // stockExchangeForm->setVisible(true);
+
         stackedWidget->setVisible(true);
         stackedWidget->setCurrentIndex(1);  // Индекс формы входа
     }
 
-    void showAuthFrom() {
+    void showAuthForm() {
         qDebug() << "LogFunc: showAuthFrom()";
+
         stackedWidget->setVisible(false);
         signupButton->setVisible(true);
         loginButton->setVisible(true);
         logoutButton->setVisible(false);
         stackedWidget->setCurrentIndex(0);  // Индекс формы входа
+        //QApplication::quit();
     }
 
     void handleRegistrationFailure(const QString &errorMessage) {
         qDebug() << "LogFunc: handleRegistrationFailure()";
+
         qDebug() << "Registration failed:" << errorMessage;
     }
 
     void handleLoginFailure(const QString &errorMessage) {
         qDebug() << "LogFunc: handleLoginFailure()";
+
         qDebug() << "Login failed:" << errorMessage;
     }
 
@@ -765,18 +728,12 @@ private slots:
         qDebug() << "Token:" << token;
         qDebug() << "User ID:" << userId;
 
-
-
         signupButton->setVisible(false);
         loginButton->setVisible(false);
         logoutButton->setVisible(true);
         stackedWidget->setCurrentIndex(2);  // Индекс главной страницы
         emit userAuthenticated(token, userId);
     }
-
-    
-
-
 
 signals:
     void userAuthenticated(const QString &token, const QString &userId);
@@ -787,12 +744,12 @@ private:
     QPushButton *logoutButton;
     QStackedWidget *stackedWidget;
 
-
 };
 
 
 int main(int argc, char **argv) {
     qDebug() << "LogFunc: main()";
+
     QApplication app(argc, argv);
 
     MainWindow mainWindow;
