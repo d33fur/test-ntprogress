@@ -15,7 +15,6 @@ class MySession : public std::enable_shared_from_this<MySession> {
 public:
     MySession(tcp::socket socket) : socket_(std::move(socket)) {}
 
-    // Запуск обработки сессии
     void start() {
         std::cout << "LogFunc: start() NEW PROCESSING" << std::endl;
 
@@ -24,14 +23,13 @@ public:
     }
 
 private:
-    // Сокет для передачи данных
     tcp::socket socket_;
 
-    // Буфер для данных
     boost::beast::flat_buffer buffer_;
 
-    // Запрос HTTP
     http::request<http::string_body> request_;
+
+    std::shared_ptr<http::response<http::string_body>> response_ptr;
 
     void reset() {
         std::cout << "LogFunc: reset()" << std::endl;
@@ -40,30 +38,75 @@ private:
         request_ = {};
     }
 
-    // Отправка ответа
     void send_response(std::string response) {
+        std::cout << "LogFunc: send_response()" << std::endl;
 
-    std::cout << "LogFunc: send_response()" << std::endl;
+        // Создаем объект http::response<http::string_body> из строки
+        http::response<http::string_body> res{std::move(response)};
 
-    auto response_ptr = std::make_shared<std::string>(std::move(response));
+        // Устанавливаем остальные поля ответа
+        res.version(request_.version());
+        res.result(http::status::ok);
+        res.set(http::field::server, "stock_exchange_backend");
+        res.set(http::field::content_type, "application/json");
+        res.prepare_payload();
 
-    http::response<http::string_body> res;
-    res.version(request_.version());
-    res.result(http::status::ok);
-    res.set(http::field::server, "stock_exchange_backend");
-    res.set(http::field::content_type, "application/json");
-    res.body() = *response_ptr;
-    res.prepare_payload();
+        // Создаем std::shared_ptr<http::response<http::string_body>> из объекта
+        response_ptr = std::make_shared<http::response<http::string_body>>(std::move(res));
 
-    http::async_write(socket_, res,
-        [self = shared_from_this(), response_ptr](boost::beast::error_code ec, std::size_t) {
-            if (ec) {
-                std::cerr << "Error in async_write: " << ec.message() << std::endl;
-            }
-            self->socket_.shutdown(tcp::socket::shutdown_send, ec);
-        });
+        make_send_response(response_ptr);
+    }
+
+    void make_send_response(std::shared_ptr<http::response<http::string_body>> res) {
+
+        std::cout << "LogFunc: make_send_response()" << std::endl;
+
+        // auto response_ptr = std::make_shared<std::string>(std::move(response));
+
+        // http::response<http::string_body> res;
+        
+        // res.version(request_.version());
+        // res.result(http::status::ok);
+        // res.set(http::field::server, "stock_exchange_backend");
+        // res.set(http::field::content_type, "application/json");
+        // res.body() = *response_ptr;
+        // res.prepare_payload();
+
+        http::async_write(socket_, res,
+            [self = shared_from_this(), response_ptr](boost::beast::error_code ec, std::size_t) {
+                if (ec) {
+                    std::cerr << "Error in async_write: " << ec.message() << std::endl;
+                }
+                self->socket_.shutdown(tcp::socket::shutdown_send, ec);
+            });
 
     }
+
+
+    // void send_response(const std::string& response) {
+
+    // std::cout << "LogFunc: send_response()" << std::endl;
+
+    // auto response_ptr = std::make_shared<std::string>(std::move(response));
+
+    // http::response<http::string_body> res;
+    
+    // res.version(request_.version());
+    // res.result(http::status::ok);
+    // res.set(http::field::server, "stock_exchange_backend");
+    // res.set(http::field::content_type, "application/json");
+    // res.body() = *response_ptr;
+    // res.prepare_payload();
+
+    // http::async_write(socket_, res,
+    //     [self = shared_from_this(), response_ptr](boost::beast::error_code ec, std::size_t) {
+    //         if (ec) {
+    //             std::cerr << "Error in async_write: " << ec.message() << std::endl;
+    //         }
+    //         self->socket_.shutdown(tcp::socket::shutdown_send, ec);
+    //     });
+
+    // }
 
     void read_request() {
         std::cout << "LogFunc: read_request()" << std::endl;
@@ -81,9 +124,9 @@ private:
 
         std::string method = request_.method_string().to_string();
         std::string target = request_.target().to_string();
-
+        std::cout << method << ' ' << target << std::endl;
         bool valid_request;
-        logReceivedJson();
+        logReceivedJson(method);
         if (method == "GET") {
             handle_get_request(target);
         }
@@ -243,7 +286,7 @@ private:
 
         PQfinish(conn);
 
-        //makeMoneyTransactions();
+        makeMoneyTransactions();
     }
 
     void cancelDeal_request() {
@@ -336,22 +379,183 @@ private:
     }
 
     void makeMoneyTransactions() {
-        //находим максимальную заявку на покупку(максимальный курс)
-        //находим минимальную заявку на продажу(минимальный курс)(курс покупки должен быть >= курсу продажи)
-        //покупаем и продаем по максимуму(не забыть что у самого себя купить нельзя)
-        //записываем изменения в бд
-        //повторяем до тех пор, пока не кончатся матчи заявок
         std::cout << "LogFunc: makeMoneyTransactions()" << std::endl;
+
+        const char* PG_get_max_buy_deal = "SELECT * FROM deals WHERE deal_type = 'buy' AND deal_status = 'active' ORDER BY exchange_rate DESC, time_start ASC";
+        const char* PG_get_min_sell_deals = "SELECT * FROM deals WHERE deal_type = 'sell' AND deal_status = 'active' ORDER BY exchange_rate DESC";
+
+        nlohmann::json deals_max_buy_json = getMaxMinDeals(PG_get_max_buy_deal);
+        nlohmann::json deals_min_sell_json = getMaxMinDeals(PG_get_min_sell_deals);
+        
+        nlohmann::json new_deals_json = {};
+
+        for(int i = 0; i < deals_max_buy_json.size(); i++) {
+            for(int j = 0; j < deals_min_sell_json.size(); j++) {
+                if(deals_min_sell_json[j]["deal_status"] == "active" && deals_min_sell_json[j]["from_user_id"] != deals_max_buy_json[i]["from_user_id"]) {
+                    int max_buy_exchange_rate = std::stoi(deals_max_buy_json[i]["exchange_rate"].get<std::string>());
+                    int min_sell_exchange_rate = std::stoi(deals_min_sell_json[j]["exchange_rate"].get<std::string>());
+
+                    if(max_buy_exchange_rate >= min_sell_exchange_rate) {
+                        int max_buy_amount = std::stoi(deals_max_buy_json[i]["amount"].get<std::string>());
+                        int min_sell_amount = std::stoi(deals_min_sell_json[j]["amount"].get<std::string>());
+
+                        if(max_buy_amount > min_sell_amount) {
+                            deals_max_buy_json[i]["amount"] = std::to_string(max_buy_amount - min_sell_amount);
+                            deals_min_sell_json[j]["deal_status"] = "done_new";
+                            deals_min_sell_json[j]["to_user_id"] = deals_max_buy_json[i]["from_user_id"];
+
+                            nlohmann::json new_deal_row = {
+                                {"amount", deals_min_sell_json[j]["amount"]},
+                                {"deal_status", "done_new"},
+                                {"deal_type", "buy"},
+                                {"exchange_rate", deals_min_sell_json[j]["exchange_rate"]},
+                                {"from_user_id", deals_max_buy_json[i]["from_user_id"]},
+                                {"time_start", deals_max_buy_json[i]["time_start"]},
+                                {"to_user_id", deals_min_sell_json[j]["from_user_id"]}
+                            };
+
+                            new_deals_json.push_back(new_deal_row);
+                        }
+                        else if(max_buy_amount == min_sell_amount) {
+                            deals_min_sell_json[j]["deal_status"] = "done_new";
+                            deals_min_sell_json[j]["to_user_id"] = deals_max_buy_json[i]["from_user_id"];
+
+                            deals_max_buy_json[i]["deal_status"] = "done_new";
+                            deals_max_buy_json[i]["to_user_id"] = deals_min_sell_json[j]["from_user_id"];
+                        }
+                        else {
+                            deals_min_sell_json[j]["amount"] = std::to_string(min_sell_amount - max_buy_amount);
+                            deals_max_buy_json[i]["deal_status"] = "done_new";
+                            deals_max_buy_json[i]["to_user_id"] = deals_min_sell_json[j]["from_user_id"];
+
+                            nlohmann::json new_deal_row = {
+                                {"amount", deals_max_buy_json[i]["amount"]},
+                                {"deal_status", "done_new"},
+                                {"deal_type", "sell"},
+                                {"exchange_rate", deals_min_sell_json[j]["exchange_rate"]},
+                                {"from_user_id", deals_min_sell_json[j]["from_user_id"]},
+                                {"time_start", deals_min_sell_json[j]["time_start"]},
+                                {"to_user_id", deals_max_buy_json[i]["from_user_id"]}
+                            };
+
+                            new_deals_json.push_back(new_deal_row);
+                        }
+                    }
+                }
+
+                if(deals_max_buy_json[i]["deal_status"] == "done_new") {
+                    break;
+                }
+            }
+        }
+
+        updateDealsInfo(deals_max_buy_json);
+        updateDealsInfo(deals_min_sell_json);
+        updateDealsInfo(new_deals_json);
+
+        updateUserInfo();
+    }
+
+    void updateDealsInfo(nlohmann::json deals_json) {
+        std::cout << "LogFunc: updateDealsInfo()" << std::endl;
 
         const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
         PGconn* conn = PQconnectdb(conninfo);
-        const char* PG_get_max_buy_deal = "SELECT * FROM deals WHERE deal_type = 'buy' AND deal_status = 'active' ORDER BY exchange_rate DESC, time_start ASC";
 
-        PGresult* result = PQexec(conn, PG_get_max_buy_deal);
-        // форматируем
+        for(auto it : deals_json) {
+            if(it.find("id") != it.end()) {
+                const char* deal_info[6] = {
+                    it["id"].get<std::string>().c_str(),
+                    it["from_user_id"].get<std::string>().c_str(),
+                    it["to_user_id"].get<std::string>().c_str(),
+                    it["amount"].get<std::string>().c_str(),
+                    it["deal_status"].get<std::string>().c_str(),
+                    it["exchange_rate"].get<std::string>().c_str()
+                };
+
+                if(it["deal_status"] == "done_new") {
+                    const char* PG_update_deal_info = "UPDATE deals SET to_user_id = $3, amount = $4, deal_status = $5, exchange_rate = $6, time_end = NOW() WHERE id = $1 AND from_user_id = $2";
+
+                    PGresult* result = PQexecParams(conn, PG_update_deal_info, 6, NULL, deal_info, NULL, NULL, 0);
+                    PQclear(result);
+                }
+                else {
+                    const char* PG_update_deal_info = "UPDATE deals SET amount = $4 WHERE id = $1 AND from_user_id = $2";
+
+                    PGresult* result = PQexecParams(conn, PG_update_deal_info, 6, NULL, deal_info, NULL, NULL, 0);
+                    PQclear(result);
+                }
+            }
+            else {
+                const char* deal_info[7] = {
+                    it["from_user_id"].get<std::string>().c_str(),
+                    it["to_user_id"].get<std::string>().c_str(),
+                    it["deal_type"].get<std::string>().c_str(),
+                    it["amount"].get<std::string>().c_str(),
+                    it["exchange_rate"].get<std::string>().c_str(),
+                    it["deal_status"].get<std::string>().c_str(),
+                    it["time_start"].get<std::string>().c_str()
+                };
+
+                const char* PG_update_deal_info = "INSERT INTO deals (from_user_id, to_user_id, deal_type, amount, exchange_rate, deal_status, time_start, time_end) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())";
+                
+                PGresult* result = PQexecParams(conn, PG_update_deal_info, 7, NULL, deal_info, NULL, NULL, 0);
+                PQclear(result);
+            }
+        }
+
+        PQfinish(conn);
+    }
+
+    void updateUserInfo() {
+        std::cout << "LogFunc: updateUserInfo()" << std::endl;
+        
+        const char* PG_get_done_new_deals = "SELECT * FROM deals WHERE deal_status = 'done_new'";
+        nlohmann::json done_new_deals_json = getMaxMinDeals(PG_get_done_new_deals);
+
+        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
+        PGconn* conn = PQconnectdb(conninfo);
+
+        for(auto it : done_new_deals_json) {
+            int balance_rub = std::stoi(it["exchange_rate"].get<std::string>()) * std::stoi(it["amount"].get<std::string>());
+            const char* user_info[3] = {
+                it["from_user_id"].get<std::string>().c_str(),
+                std::to_string(balance_rub).c_str(),
+                it["amount"].get<std::string>().c_str()
+            };
+            if(it["deal_type"] == "sell") {
+                const char* PG_update_user_info = "UPDATE users SET balance_rub = balance_rub + $2, balance_usd = balance_usd - $3 WHERE id = $1";
+
+                PGresult* result = PQexecParams(conn, PG_update_user_info, 3, NULL, user_info, NULL, NULL, 0);
+                PQclear(result);
+            }
+            else {
+                const char* PG_update_user_info = "UPDATE users SET balance_rub = balance_rub - $2, balance_usd = balance_usd + $3 WHERE id = $1";
+
+                PGresult* result = PQexecParams(conn, PG_update_user_info, 3, NULL, user_info, NULL, NULL, 0);
+                PQclear(result);
+            }
+        }
+
+        const char* PG_update_deals_info = "UPDATE deals SET deal_status = 'done' WHERE deal_status = 'done_new'";
+        PGresult* result = PQexec(conn, PG_update_deals_info);
+
+        PQclear(result);
+        PQfinish(conn);
+        std::cout << "LogFunc: updateUserInfo() END" << std::endl;
+    }
+
+    nlohmann::json getMaxMinDeals(const char* PG_get_max_min_buy_sell_deal) {
+        std::cout << "LogFunc:  getMaxMinDeals()" << std::endl;
+
+        const char* conninfo = "dbname=stock_exchange user=admin123 password=password123 hostaddr=127.0.0.1 port=5432";
+        PGconn* conn = PQconnectdb(conninfo);
+
+        PGresult* result = PQexec(conn, PG_get_max_min_buy_sell_deal);
+
         int rows = PQntuples(result);
         int cols = PQnfields(result);
-        nlohmann::json deals_json = {};
+        nlohmann::json deals_max_buy_json = {};
 
         for(int row = 0; row < rows; row++) {
             nlohmann::json deal_row = {};
@@ -360,32 +564,13 @@ private:
                 const char* column_name = PQfname(result, col);
                 deal_row[std::string(column_name)] = std::string(PQgetvalue(result, row, col));
             }
-            deals_json.push_back(deal_row);
+            deals_max_buy_json.push_back(deal_row);
         }
 
         PQclear(result);
-
-        const char* PG_get_min_sell_deals = "SELECT * FROM deals WHERE deal_type = 'sell' AND deal_status = 'active' ORDER BY exchange_rate ASC";
-
-        result = PQexec(conn, PG_get_min_sell_deals);
-        // форматируем
-
-        std::string user_id(PQgetvalue(result, 0, 0));
-
-        PQclear(result);
-
-        // находим лучшую сделку и совершаем ее
-
-
-        // обновляем данные
-        const char* PG_update_deals_info = "SELECT * FROM deals WHERE deal_type = 'sell' AND deal_status = 'active' ORDER BY exchange_rate ASC";
-
-        result = PQexec(conn, PG_update_deals_info);
-
-        PQclear(result);
-
-
         PQfinish(conn);
+
+        return deals_max_buy_json;
     }
 
     bool isTokenValid() {
@@ -644,6 +829,7 @@ private:
         PGresult* result = PQexecParams(conn, PG_make_deal, 6, NULL, user_info, NULL, NULL, 0);
 
         PQclear(result);
+        send_response("{\"success\"}");
     }
 
     void cancelDeal(PGconn* conn, const char* deal_info[]) {
@@ -653,21 +839,26 @@ private:
         PGresult* result = PQexecParams(conn, PG_cancel_deal, 3, NULL, deal_info, NULL, NULL, 0);
 
         PQclear(result);
+        send_response("{\"success\"}");
     }
 
-    void logReceivedJson() {
+    void logReceivedJson(std::string method) {
         std::cout << "LogFunc: logReceivedJson()" << std::endl;
-        try {
+
+        if(method == "GET") {
+            std::cout << "Log: no json"<< std::endl;
+        }
+        else if (method == "POST") {
             std::string body = request_.body();
             auto json_body = nlohmann::json::parse(body);
             std::cout << "Log: Received JSON: " << json_body.dump() << std::endl;
-        } catch (const std::exception& e) {
-            std::cout << "Log: no json"<< std::endl;
         }
+        
         auto json_token = request_.find("Token");
         std::string token_from_user(json_token->value());
         auto json_user_id = request_.find("User_id");
         std::string user_id(json_user_id->value());
+
         std::cout << "Log: Received user_token: " << token_from_user << std::endl;
         std::cout << "Log: Received user_id: " << user_id << std::endl;
         
