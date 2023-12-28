@@ -1,4 +1,8 @@
-CREATE DATABASE stock_exchange;
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'stock_exchange') THEN
+        CREATE DATABASE stock_exchange;
+    END IF;
+END $$;
 
 \c stock_exchange;
 
