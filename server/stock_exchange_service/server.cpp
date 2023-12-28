@@ -29,8 +29,6 @@ private:
 
     http::request<http::string_body> request_;
 
-    std::shared_ptr<http::response<http::string_body>> response_ptr;
-
     void reset() {
         std::cout << "LogFunc: reset()" << std::endl;
 
@@ -39,74 +37,26 @@ private:
     }
 
     void send_response(std::string response) {
-        std::cout << "LogFunc: send_response()" << std::endl;
 
-        // Создаем объект http::response<http::string_body> из строки
-        http::response<http::string_body> res{std::move(response)};
+    std::cout << "LogFunc: send_response()" << std::endl;
 
-        // Устанавливаем остальные поля ответа
-        res.version(request_.version());
-        res.result(http::status::ok);
-        res.set(http::field::server, "stock_exchange_backend");
-        res.set(http::field::content_type, "application/json");
-        res.prepare_payload();
+    auto response_ptr = std::make_shared<std::string>(std::move(response));
 
-        // Создаем std::shared_ptr<http::response<http::string_body>> из объекта
-        response_ptr = std::make_shared<http::response<http::string_body>>(std::move(res));
-
-        make_send_response(response_ptr);
-    }
-
-    void make_send_response(std::shared_ptr<http::response<http::string_body>> res) {
-
-        std::cout << "LogFunc: make_send_response()" << std::endl;
-
-        // auto response_ptr = std::make_shared<std::string>(std::move(response));
-
-        // http::response<http::string_body> res;
-        
-        // res.version(request_.version());
-        // res.result(http::status::ok);
-        // res.set(http::field::server, "stock_exchange_backend");
-        // res.set(http::field::content_type, "application/json");
-        // res.body() = *response_ptr;
-        // res.prepare_payload();
-
-        http::async_write(socket_, res,
-            [self = shared_from_this(), response_ptr](boost::beast::error_code ec, std::size_t) {
-                if (ec) {
-                    std::cerr << "Error in async_write: " << ec.message() << std::endl;
-                }
-                self->socket_.shutdown(tcp::socket::shutdown_send, ec);
-            });
-
-    }
-
-
-    // void send_response(const std::string& response) {
-
-    // std::cout << "LogFunc: send_response()" << std::endl;
-
-    // auto response_ptr = std::make_shared<std::string>(std::move(response));
-
-    // http::response<http::string_body> res;
+    http::response<http::string_body> res;
     
-    // res.version(request_.version());
-    // res.result(http::status::ok);
-    // res.set(http::field::server, "stock_exchange_backend");
-    // res.set(http::field::content_type, "application/json");
-    // res.body() = *response_ptr;
-    // res.prepare_payload();
+    res.version(request_.version());
+    res.result(http::status::ok);
+    res.set(http::field::server, "stock_exchange_backend");
+    res.set(http::field::content_type, "application/json");
+    res.body() = *response_ptr;
+    res.prepare_payload();
 
-    // http::async_write(socket_, res,
-    //     [self = shared_from_this(), response_ptr](boost::beast::error_code ec, std::size_t) {
-    //         if (ec) {
-    //             std::cerr << "Error in async_write: " << ec.message() << std::endl;
-    //         }
-    //         self->socket_.shutdown(tcp::socket::shutdown_send, ec);
-    //     });
+    http::async_write(socket_, res,
+        [self = shared_from_this(), response_ptr](boost::beast::error_code ec, std::size_t) {
+            self->socket_.shutdown(tcp::socket::shutdown_send, ec);
+        });
 
-    // }
+    }
 
     void read_request() {
         std::cout << "LogFunc: read_request()" << std::endl;

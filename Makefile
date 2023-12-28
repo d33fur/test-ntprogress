@@ -32,6 +32,22 @@ restart-server: stop-server start-server
 clear-server:
 	@docker-compose down || echo no containers to remove
 
+.PHONY: backend-all
+backend-all: build-backend start-backend
+
+.PHONY: build-backend
+build-backend:
+	cd server && \
+	cd stock_exchange_service && \
+	mkdir -p build && \
+	cd build && \
+	cmake .. && \
+	cmake --build .
+
+.PHONY: start-backend
+start-backend:
+	bash -c "while true; do ./server/stock_exchange_service/build/stock_exchange_service --port 8001; sleep 1; done"
+
 # Клиентская часть
 
 .PHONY: build-client
