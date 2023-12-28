@@ -46,7 +46,7 @@ build-backend:
 
 .PHONY: start-backend
 start-backend:
-	bash -c "while true; do ./server/stock_exchange_service/build/stock_exchange_service --port 8001; sleep 1; done"
+	bash -c "while true; do ./server/stock_exchange_service/build/stock_exchange_service --port 8001; sleep 0; done"
 
 # Клиентская часть
 
