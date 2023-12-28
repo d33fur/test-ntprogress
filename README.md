@@ -363,8 +363,11 @@ Reply:
 "Remember me" не работает на клиенте, но реализация на бэкэнде есть, так же как и с котировками.
 
 # 3. Запуск и тесты
-Склонируйте репозиторий и перейдите в него
-
+Для работы всего нужно поставить
+```
+sudo apt install -y make docker docker-compose postgresql libboost-dev libboost-program-options-dev cmake build-essential libpq-dev libhiredis-dev qt5-base-dev
+```
+Далее склонируйте репозиторий и перейдите в него
 ```
 git clone https://github.com/d33fur/test-ntprogress.git && cd test-ntprogress
 ```
