@@ -13,9 +13,19 @@ if(NOT HIREDIS_LIB)
     message(FATAL_ERROR "hiredis library not found")
 endif()
 
+set(INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
+set(SOURCE_DIR ${CMAKE_SOURCE_DIR}/source)
+
+include_directories(${INCLUDE_DIR})
+# include_directories(${SOURCE_DIR})
+
+file(GLOB_RECURSE SOURCES
+        ${INCLUDE_DIR}/*.h
+        ${SOURCE_DIR}/*.cpp)
+
 # INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIR})
 # INCLUDE_DIRECTORIES(${PostgreSQL_INCLUDE_DIRS})
 
-ADD_EXECUTABLE(${PROJECT_NAME} server.cpp json.hpp)
+ADD_EXECUTABLE(${PROJECT_NAME} ${SOURCES})
 
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} PRIVATE Threads::Threads ${Boost_LIBRARIES} PostgreSQL::PostgreSQL ${HIREDIS_LIB})

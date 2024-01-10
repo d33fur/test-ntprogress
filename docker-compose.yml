@@ -28,5 +28,6 @@ services:
     image: redis:latest
     volumes:
       - ./redis_data:/data
+    restart: always
     ports:
       - "6379:6379"

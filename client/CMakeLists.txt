@@ -12,7 +12,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt5 REQUIRED COMPONENTS Widgets Core Gui Network)
 
-add_executable(${PROJECT_NAME} WIN32 client.cpp)
+set(INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
+set(SOURCE_DIR ${CMAKE_SOURCE_DIR}/source)
+
+include_directories(${INCLUDE_DIR})
+include_directories(${SOURCE_DIR})
+
+file(GLOB_RECURSE SOURCES
+        ${INCLUDE_DIR}/*.h
+        ${SOURCE_DIR}/*.cpp)
+
+add_executable(${PROJECT_NAME} WIN32 ${SOURCES})
 
 target_link_libraries(${PROJECT_NAME}
         Qt5::Widgets
