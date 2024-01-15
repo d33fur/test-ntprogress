@@ -36,3 +36,4 @@ db_data
 .vscode
 client/build
 redis_data
+server/tests/build/

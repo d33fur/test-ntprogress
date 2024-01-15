@@ -1,8 +1,8 @@
 .PHONY: all
-all: rebuild-server start-server clear-client build-client start-client
+all: rebuild-server start-server tests-all client-all
 
 .PHONY: clear-all
-clear-all: clear-server clear-client
+clear-all: clear-server clear-client clear-tests
 # Серверная часть
 
 .PHONY: build-server
@@ -50,6 +50,9 @@ start-backend:
 
 # Клиентская часть
 
+.PHONY: client-all
+client-all: clear-client build-client start-client
+
 .PHONY: build-client
 build-client:
 	cd client && \
@@ -66,3 +69,26 @@ start-client:
 .PHONY: clear-client
 clear-client:
 	rm -rf client/build
+
+# Тесты
+
+.PHONY: tests-all
+tests-all: clear-tests build-tests start-tests
+
+.PHONY: build-tests
+build-tests:
+	cd server && \
+	cd tests && \
+	mkdir -p build && \
+	cd build && \
+	cmake .. && \
+	cmake --build .
+
+.PHONY: start-tests
+start-tests:
+	./server/tests/build/tests
+
+
+.PHONY: clear-tests
+clear-tests:
+	rm -rf server/tests/build

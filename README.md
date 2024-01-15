@@ -121,7 +121,7 @@ Headers:
 |User_id|19|
 
 Body:
-```
+```json
 {
     "deal_type": "buy",
     "amount": "100",
@@ -140,7 +140,7 @@ Headers:
 |User_id|19|
 
 Body:
-```
+```json
 {
     "deal_id": "7"
 }
@@ -154,7 +154,7 @@ Body:
 Headers: none
 
 Body:
-```
+```json
 {
     "login": "1",
     "password": "1",
@@ -165,14 +165,14 @@ Body:
 
 Reply:
 Если успешно
-```
+```json
 {
     "token":"gVfIhbBitZ5N746SBzFy42yAlmUaYbslAKw9ttaLzNPGafkyBtTzwWA0vzAYr7CQ011HoRykXA7Fddk8ikXKdiG8YFVqEE5LyW2JJZlXTaM9WOMTccbfwlGbnDT8S7Md",
     "user_id":"24"
 }
 ```
 Если неуспешно
-```
+```json
 {
     "Wrong login or password"
 }
@@ -184,7 +184,7 @@ Reply:
 Headers: none
 
 Body:
-```
+```json
 {
     "first_name": "vanya",
     "second_name": "vasiliev",
@@ -197,14 +197,14 @@ Body:
 
 Reply:
 Если успешно
-```
+```json
 {
     "token":"gVfIhbBitZ5N746SBzFy42yAlmUaYbslAKw9ttaLzNPGafkyBtTzwWA0vzAYr7CQ011HoRykXA7Fddk8ikXKdiG8YFVqEE5LyW2JJZlXTaM9WOMTccbfwlGbnDT8S7Md",
     "user_id":"24"
 }
 ```
 Если неуспешно
-```
+```json
 {
     "User already exists"
 }
@@ -223,13 +223,13 @@ Headers:
 
 Reply:
 Если успешно
-```
+```json
 {
     "is_user_valid": "1"
 }
 ```
 Если неуспешно
-```
+```json
 {
     "is_user_valid": "0"
 }
@@ -245,7 +245,7 @@ Headers:
 |User_id|19|
 
 Reply:
-```
+```json
 [
     {
         "amount": "100",
@@ -281,7 +281,7 @@ Headers:
 |User_id|19|
 
 Reply:
-```
+```json
 [
     {
         "amount": "100",
@@ -319,7 +319,7 @@ Headers:
 |User_id|19|
 
 Reply:
-```
+```json
 {
     "balance_rub": "0",
     "balance_usd": "0",
@@ -338,7 +338,7 @@ Headers:
 |User_id|19|
 
 Reply:
-```
+```json
 [
     {
         "exchange_rate": "34",
@@ -364,30 +364,37 @@ Reply:
 
 # 3. Запуск и тесты
 Для работы всего нужно поставить
-```
-sudo apt install -y make docker docker-compose postgresql libboost-dev libboost-program-options-dev cmake build-essential libpq-dev libhiredis-dev qt5-base-dev
+```bash
+sudo apt install -y make docker docker-compose postgresql libboost-dev libboost-program-options-dev cmake build-essential libpq-dev libhiredis-dev qt5-base-dev 
 ```
 Далее склонируйте репозиторий и перейдите в него
-```
+```bash
 git clone https://github.com/d33fur/test-ntprogress.git && cd test-ntprogress
 ```
 Запуск
-```
+```bash
 make all
 ```
 Для очистки и выключения контейнеров
-```
+```bash
 make clear-all
 ```
 Логи бэкэнда
-```
+```bash
 make logs-server
 ```
 Больше комманд можно увидеть внутри Makefile
 
-P.S. в связи с зачетной неделей и предновогодними приготовлениями не успел исправить ошибку сегментации при отправке ответа с бэкэнда и написать тесты.
+~~P.S. в связи с зачетной неделей и предновогодними приготовлениями не успел исправить ошибку сегментации при отправке ответа с бэкэнда и написать тесты.~~
 
-Из за ошибки сегментации бэк нужно запускать отдельно
-```
+~~Из за ошибки сегментации бэк нужно запускать отдельно~~
+```bash
 make backend-all
 ```
+P.P.S.
+1) Починил ошибку сегментации, теперь можно запускать через ```make all```.
+2) Благодаря тестам нашел несколько ошибок и исправил их.
+3) Написал тесты, запуск записал в ```make all```, но можно и отдельно запускать(подробнее в Makefile).
+4) Тесты на логику биржи можно было покомпактнее написать.
+5) Для запуска ```make backend-all```, ```build-backend``` и ```start-backend``` необходимо поменять айпи баз данных в коде с их айпи в сети докера на локалку.
+6) Структурировал проект. Клиент выглядит вроде неплохо, но в бэке 35+ функций в одном файле - эт плохо. Можно было декомпозировать, но я этого не сделал.

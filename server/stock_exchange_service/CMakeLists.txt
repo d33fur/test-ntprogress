@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.21)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.22.1)
 PROJECT(stock_exchange_service LANGUAGES CXX)
 
 SET(CMAKE_CXX_STANDARD 17)
@@ -16,15 +16,13 @@ endif()
 set(INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 set(SOURCE_DIR ${CMAKE_SOURCE_DIR}/source)
 
-include_directories(${INCLUDE_DIR})
-# include_directories(${SOURCE_DIR})
+include_directories(
+    ${INCLUDE_DIR}
+    ${Boost_INCLUDE_DIRS})
 
 file(GLOB_RECURSE SOURCES
         ${INCLUDE_DIR}/*.h
         ${SOURCE_DIR}/*.cpp)
-
-# INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIR})
-# INCLUDE_DIRECTORIES(${PostgreSQL_INCLUDE_DIRS})
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${SOURCES})
 

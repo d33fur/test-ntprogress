@@ -16,6 +16,6 @@ RUN groupadd -r sample && useradd -r -g sample sample
 USER sample
 
 # CMD ["./stock_exchange_service", "--port", "8001"]
-CMD ["bash", "-c", "while true; do ./stock_exchange_service --port 8001; sleep 1; done"]
+CMD ["bash", "-c", "while true; do ./stock_exchange_service; sleep 1; done"]
 
 EXPOSE 8001

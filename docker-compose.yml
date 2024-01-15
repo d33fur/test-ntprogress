@@ -1,15 +1,15 @@
 version: '3.6'
 services:
-  # stock_exchange_service:
-  #   container_name: stock_exchange_service
-  #   build:
-  #     context: server/
-  #     dockerfile: Dockerfile.stock_exchange_service
-  #   depends_on:
-  #     - db
-  #     - redis
-  #   ports:
-  #     - "8001:8001"
+  stock_exchange_service:
+    container_name: stock_exchange_service
+    build:
+      context: server/
+      dockerfile: Dockerfile.stock_exchange_service
+    depends_on:
+      - db
+      - redis
+    ports:
+      - "8001:8001"
 
   db:
     container_name: db
